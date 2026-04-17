@@ -33,9 +33,15 @@ class _MainLayoutState extends State<MainLayout> {
           bottom: false, 
           child: IndexedStack(
             index: _currentIndex,
-            children: const [
-              HomeScreen(),
-              TasksScreen(),
+            children: [
+              HomeScreen(
+                onNavigate: (index) {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+              ),
+              const TasksScreen(),
               ChatScreen(),
               Center(child: Text("Safety - Coming Soon", style: TextStyle(color: Colors.white))),
               Center(child: Text("Profile - Coming Soon", style: TextStyle(color: Colors.white))),

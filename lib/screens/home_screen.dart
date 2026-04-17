@@ -6,7 +6,9 @@ import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/screen_time_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final ValueChanged<int>? onNavigate;
+
+  const HomeScreen({super.key, this.onNavigate});
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +131,11 @@ class HomeScreen extends StatelessWidget {
           MaterialPageRoute(
             builder: (context) => ScreenTimeScreen(
               currentNavIndex: 0,
-              onNavTap: (index) {},
+              onNavTap: (index) {
+                if (onNavigate != null) {
+                  onNavigate!(index);
+                }
+              },
             ),
           ),
         );
