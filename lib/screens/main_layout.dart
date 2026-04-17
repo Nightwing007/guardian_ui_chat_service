@@ -4,6 +4,7 @@ import 'package:myapp/screens/home_screen.dart';
 import 'package:myapp/screens/tasks_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/custom_bottom_nav_bar.dart';
+import 'package:myapp/widgets/sos_bottom_sheet.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -44,7 +45,14 @@ class _MainLayoutState extends State<MainLayout> {
           ? Padding(
               padding: const EdgeInsets.only(bottom: 20.0),
               child: FloatingActionButton(
-                onPressed: () {},
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => const SosBottomSheet(),
+                  );
+                },
                 backgroundColor: AppColors.sosRed,
                 shape: const CircleBorder(),
                 child: Text(
