@@ -1,3 +1,3 @@
 class UserData {
-  static int points = 250;
+  static int points = 10;
 }

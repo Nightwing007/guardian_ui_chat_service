@@ -19,6 +19,7 @@ class _TasksScreenState extends State<TasksScreen> {
     setState(() {
       if (_completedTasks < _totalTasks) {
         _completedTasks++;
+        UserData.points += 3;
       }
     });
   }
