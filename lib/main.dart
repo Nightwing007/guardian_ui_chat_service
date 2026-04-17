@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/screens/main_layout.dart';
+import 'package:myapp/theme/app_colors.dart';
 
 void main() {
   runApp(const GuardianApp());
@@ -16,7 +17,7 @@ class GuardianApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF13151A),
+        scaffoldBackgroundColor: AppColors.scaffoldBackground,
         textTheme: GoogleFonts.poppinsTextTheme(
           ThemeData.dark().textTheme,
         ),

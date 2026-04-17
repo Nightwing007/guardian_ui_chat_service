@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:percent_indicator/percent_indicator.dart';
+import 'package:myapp/theme/app_colors.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -30,7 +30,7 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 15),
           _buildAppsList(),
-          const SizedBox(height: 80), // Padding for bottom nav & FAB
+          const SizedBox(height: 120), // Extra padding to scroll past the floating navbar
         ],
       ),
     );
@@ -69,7 +69,7 @@ class HomeScreen extends StatelessWidget {
                   "You're doing great today!",
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: Colors.grey.shade400,
+                    color: AppColors.textGrey,
                   ),
                 ),
               ],
@@ -91,7 +91,7 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF2B3A67), Color(0xFF4B3B67)],
+                colors: [AppColors.secondaryGradientStart, AppColors.secondaryGradientEnd],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ),
@@ -125,7 +125,11 @@ class HomeScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF162032), // Dark blue card color
+        gradient: const LinearGradient(
+          colors: [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -170,12 +174,12 @@ class HomeScreen extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade400,
+                        color: AppColors.textGrey,
                       ),
                     ),
                   ],
                 ),
-                progressColor: const Color(0xFF3C64F4), // Bright blue
+                progressColor: AppColors.accentBlue,
                 backgroundColor: const Color(0xFF1E2D4A), // Darker blue background
                 circularStrokeCap: CircularStrokeCap.round,
               ),
@@ -196,7 +200,11 @@ class HomeScreen extends StatelessWidget {
   Widget _buildAppsList() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E24),
+        gradient: const LinearGradient(
+          colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
       ),
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -207,7 +215,7 @@ class HomeScreen extends StatelessWidget {
             appName: 'YouTube',
             timeString: '5hr / 6hr',
             percent: 5 / 6,
-            progressColor: const Color(0xFF3C64F4),
+            progressColor: AppColors.accentBlue,
           ),
           _buildDivider(),
           _buildAppUsageItem(
@@ -215,7 +223,7 @@ class HomeScreen extends StatelessWidget {
             appName: 'WhatsApp',
             timeString: '3hr / 5hr',
             percent: 3 / 5,
-            progressColor: const Color(0xFF3C64F4),
+            progressColor: AppColors.accentBlue,
           ),
           _buildDivider(),
           _buildAppUsageItem(
@@ -223,7 +231,7 @@ class HomeScreen extends StatelessWidget {
             appName: 'Instagram',
             timeString: '1hr / 5hr',
             percent: 1 / 5,
-            progressColor: const Color(0xFF3C64F4),
+            progressColor: AppColors.accentBlue,
           ),
           _buildDivider(),
           _buildAppUsageItem(
