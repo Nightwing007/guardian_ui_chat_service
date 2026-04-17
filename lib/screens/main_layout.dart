@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/screens/home_screen.dart';
+import 'package:myapp/screens/tasks_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/custom_bottom_nav_bar.dart';
 
@@ -26,22 +27,36 @@ class _MainLayoutState extends State<MainLayout> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         extendBody: true,
-        body: const SafeArea(bottom: false, child: HomeScreen()),
-        floatingActionButton: Padding(
-          padding: const EdgeInsets.only(bottom: 20.0),
-          child: FloatingActionButton(
-            onPressed: () {},
-            backgroundColor: AppColors.sosRed,
-            shape: const CircleBorder(),
-            child: Text(
-              'SOS',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
+        body: SafeArea(
+          bottom: false, 
+          child: IndexedStack(
+            index: _currentIndex,
+            children: const [
+              HomeScreen(),
+              TasksScreen(),
+              Center(child: Text("Chat - Coming Soon", style: TextStyle(color: Colors.white))),
+              Center(child: Text("Safety - Coming Soon", style: TextStyle(color: Colors.white))),
+              Center(child: Text("Profile - Coming Soon", style: TextStyle(color: Colors.white))),
+            ],
           ),
         ),
+        floatingActionButton: _currentIndex == 0 
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 20.0),
+              child: FloatingActionButton(
+                onPressed: () {},
+                backgroundColor: AppColors.sosRed,
+                shape: const CircleBorder(),
+                child: Text(
+                  'SOS',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            )
+          : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         bottomNavigationBar: CustomBottomNavBar(
           currentIndex: _currentIndex,

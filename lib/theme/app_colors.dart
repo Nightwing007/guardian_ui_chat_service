@@ -28,4 +28,19 @@ class AppColors {
   // Text / Icon Grey colors
   static Color textGrey = Colors.grey.shade400;
   static Color iconGrey = Colors.grey.shade600;
+
+  // Task Gradients
+  static const List<Color> taskGradient1 = [Color(0xFF1A2436), Color(0xFF3B2D3A)];
+  static const List<Color> taskGradient2 = [Color(0xFF0E153A), Color(0xFF082265)];
+  static const List<Color> taskGradient3 = [Color(0xFF352056), Color(0xFF3A1E60)];
+  static const List<Color> taskGradient4 = [Color(0xFF203D8B), Color(0xFF583B7E)];
+  static const List<Color> taskGradient5 = [Color(0xFF471637), Color(0xFF5B063F)];
+
+  static const List<List<Color>> allTaskGradients = [
+    taskGradient1,
+    taskGradient2,
+    taskGradient3,
+    taskGradient4,
+    taskGradient5,
+  ];
 }
