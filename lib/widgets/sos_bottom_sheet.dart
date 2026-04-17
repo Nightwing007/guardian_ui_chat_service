@@ -6,7 +6,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 enum SosState { initial, sending, success }
 
 class SosBottomSheet extends StatefulWidget {
-  const SosBottomSheet({super.key});
+  final VoidCallback? onChatPressed;
+
+  const SosBottomSheet({super.key, this.onChatPressed});
 
   @override
   State<SosBottomSheet> createState() => _SosBottomSheetState();
@@ -255,6 +257,12 @@ class _SosBottomSheetState extends State<SosBottomSheet> with SingleTickerProvid
           label: 'Send Message',
           color: const Color(0xFF4ADE80),
           backgroundColor: const Color(0xFFBFE0C1),
+          onTap: () {
+            Navigator.pop(context); // Close the bottom sheet
+            if (widget.onChatPressed != null) {
+              widget.onChatPressed!();
+            }
+          },
         ),
       ],
     );
@@ -315,9 +323,12 @@ class _SosBottomSheetState extends State<SosBottomSheet> with SingleTickerProvid
     required String label,
     required Color color,
     required Color backgroundColor,
+    VoidCallback? onTap,
   }) {
     return Expanded(
-      child: Container(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
         padding: const EdgeInsets.symmetric(vertical: 24),
         decoration: BoxDecoration(
           color: backgroundColor,
@@ -346,6 +357,7 @@ class _SosBottomSheetState extends State<SosBottomSheet> with SingleTickerProvid
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

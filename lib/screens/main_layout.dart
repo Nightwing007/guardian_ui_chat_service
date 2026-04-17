@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/screens/home_screen.dart';
 import 'package:myapp/screens/tasks_screen.dart';
+import 'package:myapp/screens/chat_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/sos_bottom_sheet.dart';
@@ -35,7 +36,7 @@ class _MainLayoutState extends State<MainLayout> {
             children: const [
               HomeScreen(),
               TasksScreen(),
-              Center(child: Text("Chat - Coming Soon", style: TextStyle(color: Colors.white))),
+              ChatScreen(),
               Center(child: Text("Safety - Coming Soon", style: TextStyle(color: Colors.white))),
               Center(child: Text("Profile - Coming Soon", style: TextStyle(color: Colors.white))),
             ],
@@ -50,7 +51,13 @@ class _MainLayoutState extends State<MainLayout> {
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (context) => const SosBottomSheet(),
+                    builder: (context) => SosBottomSheet(
+                      onChatPressed: () {
+                        setState(() {
+                          _currentIndex = 2; // Jump to Chat tab
+                        });
+                      },
+                    ),
                   );
                 },
                 backgroundColor: AppColors.sosRed,
