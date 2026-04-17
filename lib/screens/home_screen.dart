@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:myapp/theme/app_colors.dart';
+import 'package:myapp/screens/screen_time_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -18,7 +19,7 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 30),
           _buildMotivationalCard(),
           const SizedBox(height: 20),
-          _buildScreenTimeCard(),
+          _buildScreenTimeCard(context),
           const SizedBox(height: 30),
           Text(
             'Apps Used Today',
@@ -120,18 +121,30 @@ class HomeScreen extends StatelessWidget {
 
   /// Builds the main screen time reporting card. This includes a circular
   /// progress indicator comparing current usage to the daily limit, and an illustration.
-  Widget _buildScreenTimeCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  Widget _buildScreenTimeCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ScreenTimeScreen(
+              currentNavIndex: 0,
+              onNavTap: (index) {},
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
         ),
-        borderRadius: BorderRadius.circular(24),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -192,8 +205,9 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// Builds the list of apps used today. Displays each app's icon, name,
   /// time spent, and a visual linear progress bar.
