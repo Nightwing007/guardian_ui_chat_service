@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/screens/home_screen.dart';
 import 'package:myapp/screens/tasks_screen.dart';
 import 'package:myapp/screens/chat_screen.dart';
+import 'package:myapp/screens/safety_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/sos_bottom_sheet.dart';
@@ -42,9 +43,9 @@ class _MainLayoutState extends State<MainLayout> {
                 },
               ),
               const TasksScreen(),
-              ChatScreen(),
-              Center(child: Text("Safety - Coming Soon", style: TextStyle(color: Colors.white))),
-              Center(child: Text("Profile - Coming Soon", style: TextStyle(color: Colors.white))),
+              const ChatScreen(),
+              const SafetyScreen(),
+              const Center(child: Text("Profile - Coming Soon", style: TextStyle(color: Colors.white))),
             ],
           ),
         ),
