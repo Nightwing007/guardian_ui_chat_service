@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/screens/screen_time_screen.dart';
+import 'package:myapp/screens/child/screen_time_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   final ValueChanged<int>? onNavigate;

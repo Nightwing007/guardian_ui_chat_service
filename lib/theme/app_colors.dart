@@ -13,6 +13,10 @@ class AppColors {
   static const Color primaryGradientStart = Color(0xFF3B2C3A);
   static const Color primaryGradientEnd = Color(0xFF122034);
 
+  // Welcome Screen & Login
+  static const Color primaryPurple = Color(0xFF331682);
+  static const Color primaryPurpleDark = Color(0xFF261066);
+
   // Secondary Gradient - Used for the Motivational/Quote section
   static const Color secondaryGradientStart = Color(0xFF1D3D8B);
   static const Color secondaryGradientEnd = Color(0xFF573B7F);

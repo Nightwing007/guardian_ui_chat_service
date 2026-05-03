@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:myapp/screens/home_screen.dart';
-import 'package:myapp/screens/tasks_screen.dart';
-import 'package:myapp/screens/chat_screen.dart';
-import 'package:myapp/screens/safety_screen.dart';
+import 'package:myapp/screens/child/home_screen.dart';
+import 'package:myapp/screens/child/tasks_screen.dart';
+import 'package:myapp/screens/child/chat_screen.dart';
+import 'package:myapp/screens/child/safety_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/widgets/custom_bottom_nav_bar.dart';
-import 'package:myapp/widgets/sos_bottom_sheet.dart';
+import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
+import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});

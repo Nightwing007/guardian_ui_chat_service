@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:myapp/screens/main_layout.dart';
+import 'package:myapp/screens/child/main_layout.dart';
 import 'package:myapp/theme/app_colors.dart';
+import 'package:myapp/screens/welcome_screen.dart';
 
 void main() {
   runApp(const GuardianApp());
@@ -22,7 +23,7 @@ class GuardianApp extends StatelessWidget {
           ThemeData.dark().textTheme,
         ),
       ),
-      home: const MainLayout(),
+      home: const WelcomeScreen(),
     );
   }
 }

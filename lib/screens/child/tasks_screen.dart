@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/widgets/task_widget.dart';
+import 'package:myapp/widgets/child/task_widget.dart';
 import 'package:myapp/data/user_data.dart';
 
 class TasksScreen extends StatefulWidget {

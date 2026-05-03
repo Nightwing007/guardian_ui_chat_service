@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/widgets/custom_bottom_nav_bar.dart';
-import 'package:myapp/widgets/buy_additional_time_dialog.dart';
+import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
+import 'package:myapp/widgets/child/buy_additional_time_dialog.dart';
 import 'package:myapp/data/user_data.dart';
 class ScreenTimeScreen extends StatefulWidget {
   final int currentNavIndex;

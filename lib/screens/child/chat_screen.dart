@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/widgets/chat_message_widget.dart';
+import 'package:myapp/widgets/child/chat_message_widget.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});

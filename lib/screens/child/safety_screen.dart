@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/widgets/sos_bottom_sheet.dart';
+import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 
 class SafetyScreen extends StatelessWidget {
   const SafetyScreen({super.key});
