@@ -47,4 +47,18 @@ class AppColors {
     taskGradient4,
     taskGradient5,
   ];
+
+  // Parent Dashboard specific colors
+  static const Color parentScreenTimeStart = Color(0xFF1D275A);
+  static const Color parentScreenTimeEnd = Color(0xFF291B5C);
+  
+  static const Color pendingApproveBtn = Color(0xFF00B65D);
+  static const Color pendingDeclineBtnBg = Color(0xFFFFD4D4);
+  static const Color pendingDeclineBtnText = Color(0xFFE80026);
+  static const Color pendingCardBg = Color(0xFF2C2433);
+  static const Color pendingBadgeBg = Color(0xFFEB002A);
+
+  static const Color parentDrawerBg = Color(0xFF0B0B0C);
+  static const Color parentDrawerIconBg = Color(0xFF301091);
+  static const Color aiButtonPurple = Color(0xFF4C1693);
 }
