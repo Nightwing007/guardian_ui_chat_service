@@ -8,7 +8,7 @@ class AlertsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: const Color(0xFF010304),
       body: SafeArea(
         child: Column(
           children: [

@@ -31,7 +31,7 @@ class _AlertCardState extends State<AlertCard> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
+        color: const Color(0xFF222222),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Main background
-  static const Color scaffoldBackground = Color(0xFF13151A);
+  static const Color scaffoldBackground = Color(0xFF010304);
 
   // Surface colors
   static const Color navbarBackground = Color(0xFF050707);
