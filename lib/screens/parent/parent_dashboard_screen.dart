@@ -4,6 +4,10 @@ import 'package:myapp/widgets/parent/parent_drawer.dart';
 import 'package:myapp/widgets/parent/pending_request_card.dart';
 import 'package:myapp/widgets/parent/screen_time_trends_card.dart';
 import 'package:myapp/widgets/parent/app_usage_details_card.dart';
+import 'package:myapp/widgets/parent/summary_screen_time_card.dart';
+import 'package:myapp/widgets/parent/summary_top_apps_card.dart';
+import 'package:myapp/widgets/parent/summary_risk_signals_card.dart';
+import 'package:myapp/widgets/parent/summary_active_alerts_card.dart';
 
 class ParentDashboardScreen extends StatelessWidget {
   const ParentDashboardScreen({super.key});
@@ -101,121 +105,8 @@ class ParentDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Screen Time Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  gradient: const LinearGradient(
-                    colors: [
-                      AppColors.parentScreenTimeStart,
-                      AppColors.parentScreenTimeEnd,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(Icons.screen_lock_portrait, color: Colors.white, size: 28),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            RichText(
-                              text: const TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: '2h 15m',
-                                    style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-                                  ),
-                                  TextSpan(
-                                    text: '/3h',
-                                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            // Simple progress bar
-                            Container(
-                              width: 120,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                              child: FractionallySizedBox(
-                                alignment: Alignment.centerLeft,
-                                widthFactor: 0.75,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Screen Time',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    RichText(
-                      text: const TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '75%',
-                            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                          TextSpan(
-                            text: ' of daily limit',
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Dots indicator
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(7, (index) {
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: index == 0 ? 24 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: index == 0 ? Colors.white : Colors.grey.shade700,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  );
-                }),
-              ),
+              // Scrollable Summary Cards Carousel
+              const _SummaryCarousel(),
               const SizedBox(height: 32),
 
               // Pending Requests
@@ -263,3 +154,71 @@ class ParentDashboardScreen extends StatelessWidget {
     );
   }
 }
+
+class _SummaryCarousel extends StatefulWidget {
+  const _SummaryCarousel();
+
+  @override
+  State<_SummaryCarousel> createState() => _SummaryCarouselState();
+}
+
+class _SummaryCarouselState extends State<_SummaryCarousel> {
+  final PageController _pageController = PageController(viewportFraction: 0.85, initialPage: 1);
+  int _currentPage = 1; // Default to second card (Risk Signals) as per screenshot
+
+  final List<Widget> _cards = const [
+    SummaryScreenTimeCard(),
+    SummaryRiskSignalsCard(),
+    SummaryTopAppsCard(),
+    SummaryActiveAlertsCard(),
+  ];
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+            },
+            itemCount: _cards.length,
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: _cards[index],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_cards.length, (index) {
+            final isActive = _currentPage == index;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: isActive ? 32 : 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: isActive ? Colors.white : Colors.grey.shade700,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
