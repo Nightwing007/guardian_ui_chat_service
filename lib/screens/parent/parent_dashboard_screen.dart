@@ -14,9 +14,16 @@ class ParentDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
-      drawer: const ParentDrawer(),
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/bg-app.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        drawer: const ParentDrawer(),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -24,42 +31,59 @@ class ParentDashboardScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Custom Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Builder(
-                    builder: (context) {
-                      return GestureDetector(
-                        onTap: () {
-                          Scaffold.of(context).openDrawer();
-                        },
-                        child: const Icon(Icons.menu, color: Colors.white, size: 28),
-                      );
-                    }
-                  ),
-                  Stack(
-                    children: [
-                      const CircleAvatar(
-                        radius: 18,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.person, color: Colors.grey),
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: Colors.pinkAccent,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.scaffoldBackground, width: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF050505), // Very dark background
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Builder(
+                      builder: (context) {
+                        return GestureDetector(
+                          onTap: () {
+                            Scaffold.of(context).openDrawer();
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(width: 24, height: 2, color: Colors.white),
+                              const SizedBox(height: 6),
+                              Container(width: 18, height: 2, color: Colors.white),
+                              const SizedBox(height: 6),
+                              Container(width: 12, height: 2, color: Colors.white),
+                            ],
+                          ),
+                        );
+                      }
+                    ),
+                    Stack(
+                      children: [
+                        const CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Colors.white,
+                          // If you have the image, use backgroundImage: AssetImage('assets/images/child_avatar.png')
+                          child: Icon(Icons.person, color: Colors.grey),
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Colors.pinkAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF050505), width: 2),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               
@@ -70,25 +94,34 @@ class ParentDashboardScreen extends StatelessWidget {
                   const Text(
                     'Arav\'s Dashboard',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: const Color(0xFF161616),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.my_location, color: Color(0xFF6B4EE6), size: 16),
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1B2A4A),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.my_location, color: Color(0xFF4285F4), size: 12),
+                        ),
                         const SizedBox(width: 6),
                         const Text(
                           'Location',
                           style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                         ),
+                        const SizedBox(width: 6),
+                        Container(width: 1, height: 12, color: Colors.grey.shade700),
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.all(2),
@@ -149,6 +182,7 @@ class ParentDashboardScreen extends StatelessWidget {
               const SizedBox(height: 80), // Padding for bottom nav & FAB
             ],
           ),
+        ),
         ),
       ),
     );
