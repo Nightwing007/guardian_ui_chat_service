@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/parent/blocked_apps_sites_screen.dart';
 import 'package:myapp/screens/parent/set_app_timing_screen.dart';
+import 'package:myapp/screens/parent/assign_task_screen.dart';
 import 'package:myapp/widgets/parent/set_screen_time_bottom_sheet.dart';
 import 'package:myapp/theme/app_colors.dart';
 
@@ -159,7 +160,12 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   title: 'Tasks',
                   subtitlePrefix: 'View and Assign tasks to child',
                   gradient: const [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
-                  trailing: _buildIconBtn(Icons.arrow_forward_ios, size: 14, onTap: () {}),
+                  trailing: _buildIconBtn(Icons.arrow_forward_ios, size: 14, onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AssignTaskScreen()),
+                    );
+                  }),
                 ),
                 
                 const SizedBox(height: 100), // Padding for bottom nav

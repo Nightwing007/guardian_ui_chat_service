@@ -99,7 +99,7 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF161616), // Dark grey background
+                      color: const Color(0xFF222222), // Lighter dark grey
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Row(
