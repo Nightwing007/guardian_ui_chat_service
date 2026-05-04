@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/child/main_layout.dart';
+import 'package:myapp/screens/child/child_permissions_screen.dart';
 import 'package:myapp/screens/parent/parent_login_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
-
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
 
@@ -66,12 +66,11 @@ class RoleSelectionScreen extends StatelessWidget {
                 description: 'View tasks, check your screen time, and stay protected.',
                 icon: Icons.child_care,
                 onTap: () {
-                  Navigator.pushAndRemoveUntil(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const MainLayout(),
+                      builder: (context) => const ChildPermissionsScreen(),
                     ),
-                    (route) => false,
                   );
                 },
               ),
