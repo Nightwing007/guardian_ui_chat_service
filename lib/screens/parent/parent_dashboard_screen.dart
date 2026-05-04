@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/parent_drawer.dart';
+import 'package:myapp/widgets/parent/pending_request_card.dart';
+import 'package:myapp/widgets/parent/screen_time_trends_card.dart';
+import 'package:myapp/widgets/parent/app_usage_details_card.dart';
 
 class ParentDashboardScreen extends StatelessWidget {
   const ParentDashboardScreen({super.key});
@@ -225,119 +228,14 @@ class ParentDashboardScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.pendingCardBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 20,
-                          backgroundColor: Colors.white,
-                          child: Icon(Icons.person, color: Colors.grey),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Request From Arav',
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                '5 mins ago',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.edit, color: Colors.grey, size: 16),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.pendingBadgeBg,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            'Pending',
-                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Want 30 mins on YouTube',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          const TextSpan(
-                            text: 'Reason: ',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
-                          TextSpan(
-                            text: 'Need to watch a homework video',
-                            style: TextStyle(color: Colors.grey.shade300),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          const TextSpan(
-                            text: 'AI Suggestion: ',
-                            style: TextStyle(color: Color(0xFF8B6BFF), fontWeight: FontWeight.bold),
-                          ),
-                          TextSpan(
-                            text: 'Approval Seems reasonable based on past behaviour and current time usage',
-                            style: TextStyle(color: Colors.grey.shade300, height: 1.4),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {},
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.pendingApproveBtn,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text('Approve', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {},
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.pendingDeclineBtnBg,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text('Decline', style: TextStyle(color: AppColors.pendingDeclineBtnText, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              PendingRequestCard(
+                childName: 'Arav',
+                timeAgo: '5 mins ago',
+                requestTitle: 'Want 30 mins on YouTube',
+                reason: 'Need to watch a homework video',
+                aiSuggestion: 'Approval Seems reasonable based on past behaviour and current time usage',
+                onApprove: () {},
+                onDecline: () {},
               ),
               const SizedBox(height: 32),
 
@@ -351,57 +249,12 @@ class ParentDashboardScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131D2E), // Darker bluish card
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Screen Time Trends',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: 'Daily Limit: ',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                              ),
-                              const TextSpan(
-                                text: '3 hr',
-                                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today, color: Colors.grey.shade400, size: 12),
-                          const SizedBox(width: 6),
-                          const Text('This Week', style: TextStyle(color: Colors.white, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const ScreenTimeTrendsCard(),
+              const SizedBox(height: 32),
+              
+              // App Usage Details
+              const AppUsageDetailsCard(),
+              
               const SizedBox(height: 80), // Padding for bottom nav & FAB
             ],
           ),

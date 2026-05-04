@@ -52,6 +52,14 @@ class AppColors {
   static const Color parentScreenTimeStart = Color(0xFF1D275A);
   static const Color parentScreenTimeEnd = Color(0xFF291B5C);
   
+  // Pending Request Card Gradient
+  static const Color pendingRequestGradientStart = Color(0xFF152236);
+  static const Color pendingRequestGradientEnd = Color(0xFF3B2D3A);
+  
+  // Weekly Activity Card Gradient
+  static const Color weeklyActivityGradientStart = Color(0xFF132334);
+  static const Color weeklyActivityGradientEnd = Color(0xFF122E2E);
+  
   static const Color pendingApproveBtn = Color(0xFF00B65D);
   static const Color pendingDeclineBtnBg = Color(0xFFFFD4D4);
   static const Color pendingDeclineBtnText = Color(0xFFE80026);
