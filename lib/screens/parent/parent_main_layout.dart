@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/parent/parent_dashboard_screen.dart';
+import 'package:myapp/screens/parent/alerts_screen.dart';
 import 'package:myapp/screens/parent/command_center_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/parent_custom_bottom_nav.dart';
@@ -17,7 +18,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
   // Placeholder screens for Parent
   List<Widget> get _screens => [
     const Center(child: Text("Messages", style: TextStyle(color: Colors.white, fontSize: 24))),
-    const Center(child: Text("Alerts", style: TextStyle(color: Colors.white, fontSize: 24))),
+    const AlertsScreen(),
     const ParentDashboardScreen(),
     CommandCenterScreen(
       onBack: () {
