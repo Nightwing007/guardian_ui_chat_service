@@ -4,15 +4,20 @@ import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import android.text.TextUtils
+import androidx.core.graphics.drawable.toBitmap
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.util.Calendar
 
 class MainActivity : FlutterActivity() {
@@ -95,6 +100,11 @@ class MainActivity : FlutterActivity() {
                     "stopLocationTracking" -> {
                         locationTrackingRunning = false
                         result.success(null)
+                    }
+
+                    // ── Installed Apps ─────────────────────────────────
+                    "getAllInstalledApps" -> {
+                        result.success(getAllInstalledApps())
                     }
 
                     else -> result.notImplemented()
@@ -207,5 +217,41 @@ class MainActivity : FlutterActivity() {
             }
         }
         return false
+    }
+
+    /**
+     * Returns a list of maps for each installed app (non-system only) with
+     * packageName, appName, and iconBytes (PNG encoded).
+     */
+    private fun getAllInstalledApps(): List<Map<String, Any?>> {
+        val pm = packageManager
+        val installedApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val resultList = mutableListOf<Map<String, Any?>>()
+
+        for (appInfo in installedApps) {
+            // Skip system apps
+            if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) continue
+
+            val appName = pm.getApplicationLabel(appInfo).toString()
+            val iconBytes = try {
+                val icon: Drawable = pm.getApplicationIcon(appInfo.packageName)
+                val bitmap = icon.toBitmap(width = 128, height = 128)
+                val stream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                stream.toByteArray()
+            } catch (e: Exception) {
+                null
+            }
+
+            resultList.add(
+                mapOf(
+                    "packageName" to appInfo.packageName,
+                    "appName" to appName,
+                    "iconBytes" to iconBytes
+                )
+            )
+        }
+
+        return resultList
     }
 }

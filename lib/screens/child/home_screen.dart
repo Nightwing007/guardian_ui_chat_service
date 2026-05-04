@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/screen_time_screen.dart';
 import 'package:myapp/services/app_usage_service.dart';
+import 'package:myapp/services/app_icon_cache.dart';
 
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;
@@ -17,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _appUsageService = AppUsageService();
+  final _appIconCache = AppIconCache();
 
   List<AppUsageInfo> _todayUsage = [];
   Duration _totalScreenTime = Duration.zero;
@@ -27,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadUsageData();
+    _appIconCache.preloadApps();
   }
 
   @override
@@ -396,38 +398,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         : 0.0;
 
     final timeText = _formatDuration(app.totalTimeInForeground);
-
-    // Generate a consistent color from the package name
-    final colorIndex = app.packageName.hashCode.abs() % _appColors.length;
-    final appColor = _appColors[colorIndex];
-
-    // Get the first letter of the app name for the icon
-    final initial = app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?';
-
-    // Try to get a known icon for common apps
-    final iconWidget = _getAppIcon(app.packageName, app.appName) ??
-        Text(
-          initial,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        );
+    String displayName = app.appName;
+    if (displayName.contains('.')) {
+      displayName = displayName.split('.').last;
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: appColor,
-              shape: BoxShape.circle,
-            ),
-            child: Center(child: iconWidget),
-          ),
+          _appIconCache.getAppIconWidget(app.packageName),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
@@ -438,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     Expanded(
                       child: Text(
-                        app.appName,
+                        displayName,
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -474,100 +454,4 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Returns a FontAwesome icon for well-known apps, or null.
-  Widget? _getAppIcon(String packageName, String appName) {
-    final pkg = packageName.toLowerCase();
-    final name = appName.toLowerCase();
-
-    if (pkg.contains('youtube') || name.contains('youtube')) {
-      return const FaIcon(FontAwesomeIcons.youtube, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('whatsapp') || name.contains('whatsapp')) {
-      return const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('instagram') || name.contains('instagram')) {
-      return const FaIcon(FontAwesomeIcons.instagram, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('chrome') || name.contains('chrome')) {
-      return const FaIcon(FontAwesomeIcons.chrome, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('facebook') || name.contains('facebook')) {
-      return const FaIcon(FontAwesomeIcons.facebook, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('twitter') || pkg.contains('x.com') || name == 'x') {
-      return const FaIcon(FontAwesomeIcons.xTwitter, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('snapchat') || name.contains('snapchat')) {
-      return const FaIcon(FontAwesomeIcons.snapchat, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('telegram') || name.contains('telegram')) {
-      return const FaIcon(FontAwesomeIcons.telegram, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('spotify') || name.contains('spotify')) {
-      return const FaIcon(FontAwesomeIcons.spotify, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('tiktok') || name.contains('tiktok')) {
-      return const FaIcon(FontAwesomeIcons.tiktok, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('discord') || name.contains('discord')) {
-      return const FaIcon(FontAwesomeIcons.discord, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('reddit') || name.contains('reddit')) {
-      return const FaIcon(FontAwesomeIcons.reddit, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('pinterest') || name.contains('pinterest')) {
-      return const FaIcon(FontAwesomeIcons.pinterest, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('linkedin') || name.contains('linkedin')) {
-      return const FaIcon(FontAwesomeIcons.linkedin, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('github') || name.contains('github')) {
-      return const FaIcon(FontAwesomeIcons.github, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('google.android.gm') || name.contains('gmail')) {
-      return const FaIcon(FontAwesomeIcons.envelope, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('android.dialer') || name.contains('phone')) {
-      return const Icon(Icons.phone, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('android.apps.messaging') || name.contains('messages')) {
-      return const Icon(Icons.message, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('camera') || name.contains('camera')) {
-      return const Icon(Icons.camera_alt, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('gallery') || pkg.contains('photos') || name.contains('photos')) {
-      return const Icon(Icons.photo_library, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('settings') || name.contains('settings')) {
-      return const Icon(Icons.settings, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('clock') || name.contains('clock')) {
-      return const Icon(Icons.access_time, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('calendar') || name.contains('calendar')) {
-      return const Icon(Icons.calendar_today, color: Colors.white, size: 20);
-    }
-    if (pkg.contains('maps') || name.contains('maps')) {
-      return const Icon(Icons.map, color: Colors.white, size: 20);
-    }
-
-    return null;
-  }
-
-  // Color palette for app icon backgrounds
-  static const _appColors = [
-    Color(0xFFE53935), // red
-    Color(0xFF43A047), // green
-    Color(0xFF1E88E5), // blue
-    Color(0xFF8E24AA), // purple
-    Color(0xFFFB8C00), // orange
-    Color(0xFF00ACC1), // cyan
-    Color(0xFF3949AB), // indigo
-    Color(0xFFD81B60), // pink
-    Color(0xFF5E35B1), // deep purple
-    Color(0xFF039BE5), // light blue
-    Color(0xFF7CB342), // light green
-    Color(0xFFFF6F00), // amber
-  ];
 }
