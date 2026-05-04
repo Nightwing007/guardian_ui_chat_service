@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/screen_time_screen.dart';
-import 'package:myapp/services/app_usage_service.dart';
-import 'package:myapp/services/app_icon_cache.dart';
+import 'package:myapp/services/child/app_usage_service.dart';
+import 'package:myapp/services/child/app_icon_cache.dart';
 
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;

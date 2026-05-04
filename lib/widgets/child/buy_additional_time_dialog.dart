@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:myapp/data/user_data.dart';
+import 'package:myapp/services/child/user_data.dart';
 
 class BuyAdditionalTimeDialog extends StatefulWidget {
   final String? appName;

@@ -68,6 +68,7 @@ flutter:
     - assets/images/bg-app.png
     - assets/images/task-summary-ill.png
     - assets/icons/
+    - assets/data/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

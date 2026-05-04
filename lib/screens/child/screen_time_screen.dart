@@ -4,9 +4,9 @@ import 'package:percent_indicator/percent_indicator.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/buy_additional_time_dialog.dart';
-import 'package:myapp/data/user_data.dart';
-import 'package:myapp/services/app_usage_service.dart';
-import 'package:myapp/services/app_icon_cache.dart';
+import 'package:myapp/services/child/user_data.dart';
+import 'package:myapp/services/child/app_usage_service.dart';
+import 'package:myapp/services/child/app_icon_cache.dart';
 class ScreenTimeScreen extends StatefulWidget {
   final int currentNavIndex;
   final ValueChanged<int> onNavTap;

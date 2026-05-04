@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "name": "MORNING READING",
+    "category": "Daily Task",
+    "timerTime": "5s",
+    "state": "initial"
+  },
+  {
+    "id": 2,
+    "name": "CLEAN ROOM",
+    "category": "Chores",
+    "timerTime": "15s",
+    "state": "initial"
+  },
+  {
+    "id": 3,
+    "name": "HOMEWORK",
+    "category": "Study",
+    "timerTime": "45s",
+    "state": "initial"
+  },
+  {
+    "id": 4,
+    "name": "EXERCISE",
+    "category": "Daily Task",
+    "timerTime": "20s",
+    "state": "initial"
+  },
+  {
+    "id": 5,
+    "name": "WATER PLANTS",
+    "category": "Chores",
+    "timerTime": "10s",
+    "state": "initial"
+  }
+]

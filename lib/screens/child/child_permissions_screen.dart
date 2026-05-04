@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:myapp/screens/child/main_layout.dart';
-import 'package:myapp/services/app_usage_service.dart';
-import 'package:myapp/services/monitoring_service.dart';
+import 'package:myapp/services/child/app_usage_service.dart';
+import 'package:myapp/services/child/monitoring_service.dart';
 import 'package:myapp/theme/app_colors.dart';
 
 class ChildPermissionsScreen extends StatefulWidget {

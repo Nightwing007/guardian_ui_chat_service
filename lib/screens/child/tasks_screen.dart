@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/task_widget.dart';
-import 'package:myapp/data/user_data.dart';
+import 'package:myapp/services/child/user_data.dart';
+import 'package:myapp/models/child/task_model.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -13,7 +16,24 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   int _completedTasks = 0;
-  final int _totalTasks = 5;
+  int _totalTasks = 0;
+  List<TaskModel> _tasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    final String jsonString = await rootBundle.loadString('assets/data/tasks.json');
+    final List<dynamic> jsonList = await json.decode(jsonString);
+    setState(() {
+      _tasks = jsonList.map((json) => TaskModel.fromJson(json)).toList();
+      _totalTasks = _tasks.length;
+      _completedTasks = _tasks.where((task) => task.state == TaskState.completed).length;
+    });
+  }
 
   void _incrementCompletedTasks() {
     setState(() {
@@ -50,42 +70,20 @@ class _TasksScreenState extends State<TasksScreen> {
           const SizedBox(height: 24),
           _buildSummaryCard(),
           const SizedBox(height: 24),
-          TaskWidget(
-            taskName: 'MORNING READING',
-            taskCategory: 'Daily Task',
-            timerTime: '5m',
-            gradientColors: AppColors.allTaskGradients[0],
-            onCompleted: _incrementCompletedTasks,
-          ),
-          TaskWidget(
-            taskName: 'CLEAN ROOM',
-            taskCategory: 'Chores',
-            timerTime: '15m',
-            gradientColors: AppColors.allTaskGradients[1],
-            onCompleted: _incrementCompletedTasks,
-          ),
-          TaskWidget(
-            taskName: 'HOMEWORK',
-            taskCategory: 'Study',
-            timerTime: '45m',
-            gradientColors: AppColors.allTaskGradients[2],
-            onCompleted: _incrementCompletedTasks,
-          ),
-          TaskWidget(
-            taskName: 'EXERCISE',
-            taskCategory: 'Daily Task',
-            timerTime: '20m',
-            gradientColors: AppColors.allTaskGradients[3],
-            onCompleted: _incrementCompletedTasks,
-          ),
-          TaskWidget(
-            taskName: 'WATER PLANTS',
-            taskCategory: 'Chores',
-            timerTime: '10m',
-            gradientColors: AppColors.allTaskGradients[4],
-            onCompleted: _incrementCompletedTasks,
-          ),
-          const SizedBox(height: 120), // Padding to clear the bottom floating nav bar
+          if (_tasks.isEmpty)
+            const Center(child: CircularProgressIndicator(color: Colors.white))
+          else
+            ...List.generate(_tasks.length, (index) {
+              return TaskWidget(
+                taskName: _tasks[index].name,
+                taskCategory: _tasks[index].category,
+                timerTime: _tasks[index].timerTime,
+                gradientColors: AppColors.allTaskGradients[index % AppColors.allTaskGradients.length],
+                onCompleted: _incrementCompletedTasks,
+                initialState: _tasks[index].state,
+              );
+            }),
+          const SizedBox(height: 120),
         ],
       ),
     );

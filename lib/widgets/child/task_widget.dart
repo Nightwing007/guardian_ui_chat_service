@@ -10,6 +10,7 @@ class TaskWidget extends StatefulWidget {
   final String timerTime;
   final List<Color> gradientColors;
   final VoidCallback? onCompleted;
+  final TaskState initialState;
 
   const TaskWidget({
     super.key,
@@ -18,22 +19,44 @@ class TaskWidget extends StatefulWidget {
     required this.timerTime,
     required this.gradientColors,
     this.onCompleted,
+    this.initialState = TaskState.initial,
   });
+
+  static Duration parseTimerTime(String timerTime) {
+    final regex = RegExp(r'(\d+)([smh])');
+    final match = regex.firstMatch(timerTime);
+    if (match == null) return const Duration(seconds: 5);
+    
+    final value = int.parse(match.group(1)!);
+    final unit = match.group(2);
+    
+    switch (unit) {
+      case 's':
+        return Duration(seconds: value);
+      case 'm':
+        return Duration(minutes: value);
+      case 'h':
+        return Duration(hours: value);
+      default:
+        return const Duration(seconds: 5);
+    }
+  }
 
   @override
   State<TaskWidget> createState() => _TaskWidgetState();
 }
 
 class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateMixin {
-  TaskState _currentState = TaskState.initial;
+  late TaskState _currentState;
   late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
+    _currentState = widget.initialState;
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 5),
+      duration: TaskWidget.parseTimerTime(widget.timerTime),
     );
 
     _animationController.addStatusListener((status) {
