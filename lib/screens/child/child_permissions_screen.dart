@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:myapp/screens/child/main_layout.dart';
+import 'package:myapp/services/app_usage_service.dart';
+import 'package:myapp/services/monitoring_service.dart';
 import 'package:myapp/theme/app_colors.dart';
 
 class ChildPermissionsScreen extends StatefulWidget {
@@ -9,30 +12,139 @@ class ChildPermissionsScreen extends StatefulWidget {
   State<ChildPermissionsScreen> createState() => _ChildPermissionsScreenState();
 }
 
-class _ChildPermissionsScreenState extends State<ChildPermissionsScreen> {
-  bool _usageAccess = false;
-  bool _accessibilityService = false;
-  bool _vpnMonitoring = false;
-  bool _locationTracking = false;
+class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
+    with WidgetsBindingObserver {
+  final _appUsage = AppUsageService();
+  final _monitoring = MonitoringService();
+
+  bool _usagePermission = false;
+  bool _accessibilityEnabled = false;
+  bool _vpnRunning = false;
+  bool _locationRunning = false;
   bool _overlayPermission = false;
 
-  bool get _allPermissionsGranted {
-    return _usageAccess &&
-        _accessibilityService &&
-        _vpnMonitoring &&
-        _locationTracking &&
-        _overlayPermission;
+  /// All 4 required permissions (overlay is optional).
+  bool get _ready =>
+      _usagePermission &&
+      _accessibilityEnabled &&
+      _vpnRunning &&
+      _locationRunning;
+
+  // ── Lifecycle ──────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshChecks();
   }
 
-  void _turnOnAll() {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Re-check all permissions when the user returns from system settings.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshChecks();
+    }
+  }
+
+  // ── Permission checks ─────────────────────────────────────────────
+
+  Future<void> _refreshChecks() async {
+    final results = await Future.wait([
+      _appUsage.hasUsageStatsPermission(),
+      _monitoring.isAccessibilityEnabled(),
+      _monitoring.isVpnRunning(),
+      _monitoring.isLocationTrackingRunning(),
+      _appUsage.hasOverlayPermission(),
+    ]);
+
+    if (!mounted) return;
     setState(() {
-      _usageAccess = true;
-      _accessibilityService = true;
-      _vpnMonitoring = true;
-      _locationTracking = true;
-      _overlayPermission = true;
+      _usagePermission = results[0];
+      _accessibilityEnabled = results[1];
+      _vpnRunning = results[2];
+      _locationRunning = results[3];
+      _overlayPermission = results[4];
     });
   }
+
+  // ── Permission requests ───────────────────────────────────────────
+
+  Future<void> _requestUsageStats() async {
+    await _appUsage.openUsageAccessSettings();
+    // Status will be refreshed via didChangeAppLifecycleState when user
+    // returns from the settings page.
+  }
+
+  Future<void> _requestAccessibility() async {
+    await _monitoring.openAccessibilitySettings();
+  }
+
+  Future<void> _toggleVpn() async {
+    if (_vpnRunning) {
+      await _monitoring.stopVpn();
+    } else {
+      final result = await _monitoring.startVpn();
+      if (result != 'started') {
+        // VPN permission dialog was declined
+        return;
+      }
+    }
+    await _refreshChecks();
+  }
+
+  Future<void> _toggleLocationTracking() async {
+    if (_locationRunning) {
+      await _monitoring.stopLocationTracking();
+      await _refreshChecks();
+    } else {
+      final granted = await _ensureLocationPermission();
+      if (!granted) return;
+
+      final result = await _monitoring.startLocationTracking();
+      if (result == 'started') {
+        await _refreshChecks();
+      }
+    }
+  }
+
+  /// Requests runtime location permissions step-by-step:
+  /// 1. `locationWhenInUse`
+  /// 2. `locationAlways` (background)
+  /// 3. Falls back to app settings if permanently denied.
+  Future<bool> _ensureLocationPermission() async {
+    // Step 1 — foreground
+    var status = await Permission.locationWhenInUse.request();
+    if (status.isDenied || status.isPermanentlyDenied) {
+      if (status.isPermanentlyDenied) {
+        await openAppSettings();
+      }
+      return false;
+    }
+
+    // Step 2 — background
+    status = await Permission.locationAlways.request();
+    if (status.isDenied || status.isPermanentlyDenied) {
+      if (status.isPermanentlyDenied) {
+        await openAppSettings();
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _toggleOverlay() async {
+    await _appUsage.requestOverlayPermission();
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -61,83 +173,62 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'To keep you protected and ensure Guardian AI functions properly, please enable the following permissions.',
+                'To keep you protected and ensure Guardian AI functions '
+                'properly, please enable the following permissions.',
                 style: TextStyle(
                   fontSize: 16,
                   color: AppColors.textGrey,
                   height: 1.5,
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _turnOnAll,
-                    child: Text(
-                      'Turn On All',
-                      style: TextStyle(
-                        color: AppColors.accentBlue,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 32),
               Expanded(
                 child: ListView(
                   children: [
                     _buildPermissionItem(
                       title: 'Usage Access',
-                      description: 'Required to monitor app usage and screen time.',
+                      description:
+                          'Required to monitor app usage and screen time.',
                       icon: Icons.data_usage,
-                      value: _usageAccess,
-                      onChanged: (val) {
-                        setState(() => _usageAccess = val);
-                      },
+                      value: _usagePermission,
+                      onChanged: (_) => _requestUsageStats(),
                     ),
                     _buildPermissionItem(
                       title: 'Accessibility Service',
-                      description: 'Used for URL monitoring and content filtering.',
+                      description:
+                          'Used for URL monitoring and content filtering.',
                       icon: Icons.accessibility,
-                      value: _accessibilityService,
-                      onChanged: (val) {
-                        setState(() => _accessibilityService = val);
-                      },
+                      value: _accessibilityEnabled,
+                      onChanged: (_) => _requestAccessibility(),
                     ),
                     _buildPermissionItem(
                       title: 'VPN Monitoring',
                       description: 'Required to block harmful content.',
                       icon: Icons.vpn_lock,
-                      value: _vpnMonitoring,
-                      onChanged: (val) {
-                        setState(() => _vpnMonitoring = val);
-                      },
+                      value: _vpnRunning,
+                      onChanged: (_) => _toggleVpn(),
                     ),
                     _buildPermissionItem(
                       title: 'Location Tracking',
-                      description: 'Required for location sharing with your parents.',
+                      description:
+                          'Required for location sharing with your parents.',
                       icon: Icons.location_on,
-                      value: _locationTracking,
-                      onChanged: (val) {
-                        setState(() => _locationTracking = val);
-                      },
+                      value: _locationRunning,
+                      onChanged: (_) => _toggleLocationTracking(),
                     ),
                     _buildPermissionItem(
                       title: 'Overlay Permission',
-                      description: 'Required to display alerts over other apps.',
+                      description:
+                          'Required to display alerts over other apps.',
                       icon: Icons.layers,
                       value: _overlayPermission,
-                      onChanged: (val) {
-                        setState(() => _overlayPermission = val);
-                      },
+                      onChanged: (_) => _toggleOverlay(),
+                      optional: true,
                     ),
                   ],
                 ),
               ),
-              if (_allPermissionsGranted) ...[
+              if (_ready) ...[
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
@@ -176,12 +267,15 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen> {
     );
   }
 
+  // ── Permission tile ───────────────────────────────────────────────
+
   Widget _buildPermissionItem({
     required String title,
     required String description,
     required IconData icon,
     required bool value,
     required ValueChanged<bool> onChanged,
+    bool optional = false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -190,7 +284,9 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen> {
         color: AppColors.cardBlueBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.surfaceOverlay,
+          color: value
+              ? AppColors.accentBlue.withOpacity(0.4)
+              : AppColors.surfaceOverlay,
           width: 1,
         ),
       ),
@@ -200,12 +296,14 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppColors.primaryPurple.withOpacity(0.2),
+              color: value
+                  ? AppColors.accentBlue.withOpacity(0.2)
+                  : AppColors.primaryPurple.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              color: AppColors.accentBlue,
+              color: value ? AppColors.accentBlue : AppColors.textGrey,
               size: 24,
             ),
           ),
@@ -214,13 +312,37 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (optional) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceOverlay,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Optional',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textGrey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(

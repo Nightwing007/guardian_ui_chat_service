@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Guardian AI</string>
+    <string name="accessibility_service_description">Guardian AI uses this service to monitor browser URLs and detect harmful content to keep your child safe online.</string>
+</resources>
