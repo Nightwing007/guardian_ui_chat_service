@@ -4,6 +4,7 @@ import 'package:myapp/screens/child/home_screen.dart';
 import 'package:myapp/screens/child/tasks_screen.dart';
 import 'package:myapp/screens/child/chat_screen.dart';
 import 'package:myapp/screens/child/safety_screen.dart';
+import 'package:myapp/screens/child/child_profile_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
@@ -45,7 +46,7 @@ class _MainLayoutState extends State<MainLayout> {
               const TasksScreen(),
               const ChatScreen(),
               const SafetyScreen(),
-              const Center(child: Text("Profile - Coming Soon", style: TextStyle(color: Colors.white))),
+              const ChildProfileScreen(),
             ],
           ),
         ),

@@ -10,8 +10,8 @@ class AppColors {
   static const Color surfaceOverlay = Color(0xFF1E1E24);
 
   // Primary Gradient - Used for Navbar selected items and the Apps List background
-  static const Color primaryGradientStart = Color(0xFF3B2C3A);
-  static const Color primaryGradientEnd = Color(0xFF122034);
+  static const Color primaryGradientStart = Color(0xFF122034);
+  static const Color primaryGradientEnd = Color(0xFF3B2C3A);
 
   // Welcome Screen & Login
   static const Color primaryPurple = Color(0xFF331682);
