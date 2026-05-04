@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/buy_additional_time_dialog.dart';
 import 'package:myapp/data/user_data.dart';
+import 'package:myapp/services/app_usage_service.dart';
+import 'package:myapp/services/app_icon_cache.dart';
 class ScreenTimeScreen extends StatefulWidget {
   final int currentNavIndex;
   final ValueChanged<int> onNavTap;
@@ -21,6 +22,52 @@ class ScreenTimeScreen extends StatefulWidget {
 }
 
 class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
+  final _appUsageService = AppUsageService();
+  final _appIconCache = AppIconCache();
+
+  List<AppUsageInfo> _todayUsage = [];
+  Duration _totalScreenTime = Duration.zero;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _appIconCache.preloadApps();
+    _loadUsageData();
+  }
+
+  Future<void> _loadUsageData() async {
+    final hasPermission = await _appUsageService.hasUsageStatsPermission();
+    if (!hasPermission) {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+      return;
+    }
+
+    final usage = await _appUsageService.getTodayUsage();
+    final totalMs = usage.fold<int>(
+      0,
+      (sum, app) => sum + app.totalTimeInForeground.inMilliseconds,
+    );
+
+    if (mounted) {
+      setState(() {
+        _todayUsage = usage;
+        _totalScreenTime = Duration(milliseconds: totalMs);
+        _loading = false;
+      });
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60);
+    if (hours > 0 && minutes > 0) return '${hours}h ${minutes}m';
+    if (hours > 0) return '${hours}h';
+    if (minutes > 0) return '${minutes}m';
+    return '<1m';
+  }
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -98,6 +145,11 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   }
 
   Widget _buildScreenTimeCard() {
+    const limitHours = 4.0;
+    final usedHours = _totalScreenTime.inMinutes / 60.0;
+    final percent = (usedHours / limitHours).clamp(0.0, 1.0);
+    final screenTimeText = _formatDuration(_totalScreenTime);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -134,12 +186,12 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
               CircularPercentIndicator(
                 radius: 75.0,
                 lineWidth: 12.0,
-                percent: 2.25 / 4.0, // 2h 15m out of 4h
+                percent: percent,
                 center: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "2h 15m",
+                      screenTimeText,
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -147,7 +199,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                       ),
                     ),
                     Text(
-                      "OF 4H LIMIT",
+                      "OF ${limitHours.toInt()}H LIMIT",
                       style: GoogleFonts.poppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -177,7 +229,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                     ),
                   ],
                 ),
-                progressColor: AppColors.accentBlue,
+                progressColor: percent >= 1.0 ? Colors.redAccent : AppColors.accentBlue,
                 backgroundColor: const Color(0xFF1E2D4A),
                 circularStrokeCap: CircularStrokeCap.round,
               ),
@@ -213,6 +265,48 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   }
 
   Widget _buildAppsList() {
+    if (_loading) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: AppColors.accentBlue),
+        ),
+      );
+    }
+
+    if (_todayUsage.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Center(
+          child: Text(
+            'No app usage data yet',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: AppColors.textGrey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final appsToShow = _todayUsage.take(10).toList();
+
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -225,29 +319,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         children: [
-          _buildAppUsageItem(
-            iconView: const FaIcon(FontAwesomeIcons.youtube, color: Colors.red, size: 24),
-            appName: 'YouTube',
-            timeString: '5hr / 6hr',
-          ),
-          _buildDivider(),
-          _buildAppUsageItem(
-            iconView: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 24),
-            appName: 'WhatsApp',
-            timeString: '3hr / 5hr',
-          ),
-          _buildDivider(),
-          _buildAppUsageItem(
-            iconView: const FaIcon(FontAwesomeIcons.instagram, color: Colors.purpleAccent, size: 24),
-            appName: 'Instagram',
-            timeString: '1hr / 5hr',
-          ),
-          _buildDivider(),
-          _buildAppUsageItem(
-            iconView: const FaIcon(FontAwesomeIcons.chrome, color: Colors.red, size: 24),
-            appName: 'Chrome',
-            timeString: '2hr / 5hr',
-          ),
+          for (int i = 0; i < appsToShow.length; i++) ...[
+            _buildRealAppUsageItem(app: appsToShow[i]),
+            if (i < appsToShow.length - 1) _buildDivider(),
+          ],
         ],
       ),
     );
@@ -260,34 +335,28 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     );
   }
 
-  Widget _buildAppUsageItem({
-    required Widget iconView,
-    required String appName,
-    required String timeString,
-  }) {
+  Widget _buildRealAppUsageItem({required AppUsageInfo app}) {
+    String displayName = app.appName;
+    if (displayName.contains('.')) {
+      displayName = displayName.split('.').last;
+    }
+
+    const allowedHours = 5;
+    final usedHours = app.totalTimeInForeground.inMinutes / 60.0;
+    final timeString = '${usedHours.toInt()}hr / ${allowedHours}hr';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: const BoxDecoration(
-              color: AppColors.sosRed, // Red icon background specifically asked for in ref
-              shape: BoxShape.circle,
-            ),
-            child: CircleAvatar(
-              radius: 12,
-              backgroundColor: Colors.white,
-              child: iconView,
-            ),
-          ),
+          _appIconCache.getAppIconWidget(app.packageName, size: 40),
           const SizedBox(width: 15),
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  appName,
+                  displayName,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -309,7 +378,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
             onTap: () {
               showDialog(
                 context: context,
-                builder: (context) => BuyAdditionalTimeDialog(appName: appName),
+                builder: (context) => BuyAdditionalTimeDialog(appName: displayName),
               );
             },
             child: Container(
