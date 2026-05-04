@@ -60,6 +60,13 @@ class AppColors {
   static const Color weeklyActivityGradientStart = Color(0xFF132334);
   static const Color weeklyActivityGradientEnd = Color(0xFF122E2E);
   
+  // Command Center Colors
+  static const Color cmdScreenTimeStart = Color(0xFF1E243A); 
+  static const Color cmdScreenTimeEnd = Color(0xFF452E3E);
+  static const Color cmdQuickActionStart = Color(0xFF12223D);
+  static const Color cmdQuickActionEnd = Color(0xFF11213D);
+  static const Color cmdIconBg = Color(0xFFD9D9D9);
+  
   static const Color pendingApproveBtn = Color(0xFF00B65D);
   static const Color pendingDeclineBtnBg = Color(0xFFFFD4D4);
   static const Color pendingDeclineBtnText = Color(0xFFE80026);
