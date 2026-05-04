@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:myapp/theme/app_colors.dart';
 
 class ParentCustomBottomNav extends StatelessWidget {
@@ -18,53 +19,90 @@ class ParentCustomBottomNav extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.navbarBackground,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildNavItem(0, Icons.chat_bubble_outline),
-          _buildNavItem(1, Icons.campaign_outlined),
-          _buildCenterItem(2, Icons.grid_view),
-          _buildNavItem(3, Icons.scatter_plot_outlined),
-          _buildProfileItem(4),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData icon) {
-    final isSelected = currentIndex == index;
-    return GestureDetector(
-      onTap: () => onTap(index),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        child: Icon(
-          icon,
-          color: isSelected ? Colors.white : AppColors.iconGrey,
-          size: 28,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildSvgNavItem(0, 'assets/icons/msg.svg'),
+            _buildSvgNavItem(1, 'assets/icons/alert.svg'),
+            _buildCenterSvgItem(2, 'assets/icons/dashboard.svg'),
+            _buildSvgNavItem(3, 'assets/icons/cmd.svg'),
+            _buildProfileItem(4),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildCenterItem(int index, IconData icon) {
+  Widget _buildSvgNavItem(int index, String assetPath) {
     final isSelected = currentIndex == index;
     return GestureDetector(
       onTap: () => onTap(index),
       child: Container(
-        width: 60,
-        height: 60,
+        padding: const EdgeInsets.all(8),
+        child: SvgPicture.asset(
+          assetPath,
+          colorFilter: ColorFilter.mode(
+            isSelected ? Colors.white : AppColors.iconGrey,
+            BlendMode.srcIn,
+          ),
+          width: 24,
+          height: 24,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCenterSvgItem(int index, String assetPath) {
+    final isSelected = currentIndex == index;
+    return GestureDetector(
+      onTap: () => onTap(index),
+      child: Container(
+        width: 56,
+        height: 56,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected ? const Color(0xFF3C64F4) : Colors.transparent, // glowing blue ring
-            width: 2,
-          ),
-          color: Colors.white.withOpacity(0.05),
+          gradient: isSelected
+              ? const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF1C3270), // Darker blue top
+                    Color(0xFF268AE4), // Brighter blue/cyan bottom
+                  ],
+                )
+              : null,
+          color: isSelected ? null : Colors.transparent,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF268AE4).withOpacity(0.3),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  )
+                ]
+              : [],
         ),
-        child: Icon(
-          icon,
-          color: isSelected ? Colors.white : AppColors.iconGrey,
-          size: 32,
+        child: Padding(
+          padding: EdgeInsets.all(isSelected ? 2.5 : 0.0), // slightly smaller border
+          child: Container(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.navbarBackground, // Inner circle matches navbar
+            ),
+            child: Center(
+              child: SvgPicture.asset(
+                assetPath,
+                colorFilter: ColorFilter.mode(
+                  isSelected ? Colors.white : AppColors.iconGrey,
+                  BlendMode.srcIn,
+                ),
+                width: 26,
+                height: 26,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -84,9 +122,9 @@ class ParentCustomBottomNav extends StatelessWidget {
           ),
         ),
         child: const CircleAvatar(
-          radius: 14,
+          radius: 13,
           backgroundColor: Colors.white,
-          child: Icon(Icons.person, color: Colors.grey, size: 20),
+          child: Icon(Icons.person, color: Colors.grey, size: 18),
         ),
       ),
     );
