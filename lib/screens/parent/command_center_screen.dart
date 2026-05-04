@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/screens/parent/set_screen_time_screen.dart';
 import 'package:myapp/screens/parent/blocked_apps_sites_screen.dart';
+import 'package:myapp/screens/parent/set_app_timing_screen.dart';
+import 'package:myapp/widgets/parent/set_screen_time_bottom_sheet.dart';
 import 'package:myapp/theme/app_colors.dart';
 
 class CommandCenterScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class CommandCenterScreen extends StatefulWidget {
 class _CommandCenterScreenState extends State<CommandCenterScreen> {
   bool isSleepModeOn = true;
   bool isExamModeOn = false;
+  Duration screenTimeLimit = const Duration(hours: 3);
 
   @override
   Widget build(BuildContext context) {
@@ -64,13 +66,22 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 _buildActionCard(
                   title: 'Screen Time',
                   subtitlePrefix: 'Daily Limit : ',
-                  subtitleHighlight: '3 hr',
+                  subtitleHighlight: '${screenTimeLimit.inHours} hr ${screenTimeLimit.inMinutes % 60} mins',
                   gradient: const [AppColors.primaryGradientEnd, AppColors.primaryGradientStart],
-                  trailing: _buildIconBtn(Icons.edit, onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const SetScreenTimeScreen()),
+                  trailing: _buildIconBtn(Icons.edit, onTap: () async {
+                    final newDuration = await showModalBottomSheet<Duration>(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => SetScreenTimeBottomSheet(
+                        initialDuration: screenTimeLimit,
+                      ),
                     );
+
+                    if (newDuration != null) {
+                      setState(() {
+                        screenTimeLimit = newDuration;
+                      });
+                    }
                   }),
                 ),
                 const SizedBox(height: 16),
@@ -80,7 +91,12 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   title: 'App Timing',
                   subtitlePrefix: 'Set Time Limit For Apps',
                   gradient: const [AppColors.primaryGradientEnd, AppColors.primaryGradientStart],
-                  trailing: _buildIconBtn(Icons.edit, onTap: () {}),
+                  trailing: _buildIconBtn(Icons.edit, onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SetAppTimingScreen()),
+                    );
+                  }),
                 ),
                 
                 const SizedBox(height: 32),
