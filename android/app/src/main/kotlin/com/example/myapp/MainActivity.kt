@@ -1,13 +1,13 @@
 package com.example.myapp
 
 import android.app.AppOpsManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Process
@@ -138,15 +138,13 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Queries UsageStatsManager for today's per-app usage stats.
-     * Returns a list of maps with packageName, appName, totalTimeInForeground,
-     * and lastTimeUsed for each app that has > 0 foreground time today.
+     * Queries UsageStatsManager for today's per-app usage stats using
+     * UsageEvents for accurate foreground time tracking.
      */
     private fun getTodayUsageStats(): List<Map<String, Any>> {
         val usageStatsManager =
             getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
-        // Start of today (midnight)
         val calendar = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
@@ -156,45 +154,95 @@ class MainActivity : FlutterActivity() {
         val startTime = calendar.timeInMillis
         val endTime = System.currentTimeMillis()
 
-        val stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            startTime,
-            endTime
-        )
+        val events = usageStatsManager.queryEvents(startTime, endTime)
+        val event = UsageEvents.Event()
 
-        val pm = packageManager
-        val resultList = mutableListOf<Map<String, Any>>()
+        val accumulatedTime = mutableMapOf<String, Long>()
+        var currentPackage: String? = null
+        var currentResumedTime: Long = 0L
 
-        if (stats != null) {
-            for (usageStat in stats) {
-                // Skip apps with no foreground time
-                if (usageStat.totalTimeInForeground <= 0) continue
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
 
-                // Try to get a human-readable app name
-                val appName = try {
-                    val appInfo = pm.getApplicationInfo(
-                        usageStat.packageName,
-                        PackageManager.GET_META_DATA
-                    )
-                    pm.getApplicationLabel(appInfo).toString()
-                } catch (e: PackageManager.NameNotFoundException) {
-                    usageStat.packageName
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED -> {
+                    val newPkg = event.packageName
+                    val time = event.timeStamp
+
+                    if (currentPackage != null && currentPackage != newPkg) {
+                        val duration = time - currentResumedTime
+                        if (duration > 0) {
+                            accumulatedTime[currentPackage!!] =
+                                accumulatedTime.getOrDefault(currentPackage!!, 0L) + duration
+                        }
+                    }
+
+                    currentPackage = newPkg
+                    currentResumedTime = time
                 }
 
-                resultList.add(
-                    mapOf(
-                        "packageName" to usageStat.packageName,
-                        "appName" to appName,
-                        "totalTimeInForeground" to usageStat.totalTimeInForeground,
-                        "lastTimeUsed" to usageStat.lastTimeUsed
-                    )
-                )
+                UsageEvents.Event.ACTIVITY_PAUSED -> {
+                    val pausedPkg = event.packageName
+                    if (pausedPkg == currentPackage) {
+                        val time = event.timeStamp
+                        val duration = time - currentResumedTime
+                        if (duration > 0) {
+                            accumulatedTime[pausedPkg] =
+                                accumulatedTime.getOrDefault(pausedPkg, 0L) + duration
+                        }
+                        currentPackage = null
+                    }
+                }
             }
         }
 
-        // Sort by foreground time descending (most-used first)
-        resultList.sortByDescending { it["totalTimeInForeground"] as Long }
+        // Handle still-active package at endTime
+        if (currentPackage != null) {
+            val duration = endTime - currentResumedTime
+            if (duration > 0) {
+                accumulatedTime[currentPackage!!] =
+                    accumulatedTime.getOrDefault(currentPackage!!, 0L) + duration
+            }
+        }
 
+        // Convert to result list
+        val pm = packageManager
+        val systemPrefixes = listOf(
+            "com.android.",
+            "android.",
+            "com.google.android.gms",
+            "com.google.android.gsf",
+            "com.google.android.webview",
+            "com.google.android.partnersetup",
+            "com.qualcomm.",
+            "com.motorola.",
+            "com.motorola.launcher",
+        )
+
+        val resultList = mutableListOf<Map<String, Any>>()
+
+        for ((pkg, totalTime) in accumulatedTime) {
+            if (totalTime <= 0) continue
+            if (systemPrefixes.any { pkg.startsWith(it) }) continue
+
+            val appName = try {
+                val appInfo = pm.getApplicationInfo(pkg, PackageManager.GET_META_DATA)
+                pm.getApplicationLabel(appInfo).toString()
+            } catch (e: Exception) {
+                continue
+            }
+
+            resultList.add(
+                mapOf(
+                    "packageName" to pkg,
+                    "appName" to appName,
+                    "totalTimeInForeground" to totalTime,
+                    "lastTimeUsed" to endTime
+                )
+            )
+        }
+
+        resultList.sortByDescending { it["totalTimeInForeground"] as Long }
         return resultList
     }
 
@@ -220,8 +268,9 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Returns a list of maps for each installed app (non-system only) with
+     * Returns a list of maps for each installed app with
      * packageName, appName, and iconBytes (PNG encoded).
+     * Includes user apps only, skipping pure system apps.
      */
     private fun getAllInstalledApps(): List<Map<String, Any?>> {
         val pm = packageManager
@@ -229,15 +278,22 @@ class MainActivity : FlutterActivity() {
         val resultList = mutableListOf<Map<String, Any?>>()
 
         for (appInfo in installedApps) {
-            // Skip system apps
-            if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) continue
+            // Skip pure system apps, but keep user-installed and updated system apps
+            val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+            val isUpdatedSystemApp = (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+            if (isSystemApp && !isUpdatedSystemApp) continue
 
-            val appName = pm.getApplicationLabel(appInfo).toString()
+            val appName = try {
+                pm.getApplicationLabel(appInfo).toString()
+            } catch (e: Exception) {
+                appInfo.packageName
+            }
+
             val iconBytes = try {
-                val icon: Drawable = pm.getApplicationIcon(appInfo.packageName)
-                val bitmap = icon.toBitmap(width = 128, height = 128)
+                val icon = pm.getApplicationIcon(appInfo)
+                val bitmap = icon.toBitmap(width = 96, height = 96)
                 val stream = ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
                 stream.toByteArray()
             } catch (e: Exception) {
                 null

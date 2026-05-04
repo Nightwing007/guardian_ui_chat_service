@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- Query all installed apps (needed for parental monitoring) -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
     <!-- Overlay / draw over other apps -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -63,12 +67,17 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
     </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
-
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- Query all installed apps (needed for app monitoring) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- Required to query activities that can process text, see:
+             https://developer.android.com/training/package-visibility and
+             https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+             In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
