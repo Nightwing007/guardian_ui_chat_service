@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:myapp/models/child/task_model.dart';
+import 'package:myapp/models/child/chat_message.dart';
 import 'package:myapp/services/child/app_usage_service.dart';
 
 /// Central SQLite-backed database for the Guardian AI app.
@@ -36,7 +37,7 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -127,6 +128,30 @@ class AppDatabase {
     for (final limit in seedLimits) {
       await db.insert('app_limits', limit);
     }
+
+    // ── chat_messages ──
+    await db.execute('''
+      CREATE TABLE chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        time TEXT NOT NULL,
+        is_me INTEGER NOT NULL,
+        is_seen INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // Seed some sample chat messages
+    final now = DateTime.now();
+    final sampleMessages = [
+      {'text': 'Hey Alex! How was thr your day?', 'time': now.subtract(const Duration(hours: 2)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
+      {'text': 'It was good! I finished my homework.', 'time': now.subtract(const Duration(hours: 1, minutes: 45)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
+      {'text': 'That\'s great! Keep it up!', 'time': now.subtract(const Duration(hours: 1, minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
+      {'text': 'Thanks Mom! Can I have more screen time?', 'time': now.subtract(const Duration(hours: 1)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
+      {'text': 'Complete your tasks first!', 'time': now.subtract(const Duration(minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 0},
+    ];
+    for (final msg in sampleMessages) {
+      await db.insert('chat_messages', msg);
+    }
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -136,6 +161,31 @@ class AppDatabase {
         {'total_allowed_screen_time_minutes': 600},
         where: 'id = 1',
       );
+    }
+    if (oldVersion < 3) {
+      // Create chat_messages table
+      await db.execute('''
+        CREATE TABLE chat_messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          text TEXT NOT NULL,
+          time TEXT NOT NULL,
+          is_me INTEGER NOT NULL,
+          is_seen INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      
+      // Seed sample messages
+      final now = DateTime.now();
+      final sampleMessages = [
+        {'text': 'Hey Alex! How was your day?', 'time': now.subtract(const Duration(hours: 2)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
+        {'text': 'It was good! I finished my homework.', 'time': now.subtract(const Duration(hours: 1, minutes: 45)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
+        {'text': 'That\'s great! Keep it up!', 'time': now.subtract(const Duration(hours: 1, minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
+        {'text': 'Thanks Mom! Can I have more screen time?', 'time': now.subtract(const Duration(hours: 1)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
+        {'text': 'Complete your tasks first!', 'time': now.subtract(const Duration(minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 0},
+      ];
+      for (final msg in sampleMessages) {
+        await db.insert('chat_messages', msg);
+      }
     }
   }
 }
@@ -306,9 +356,39 @@ class ChildData {
       whereArgs: [packageName],
     );
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════════
+  // ── Chat Messages (SQLite) ───────────────────────────────────────────
+
+  Future<List<ChatMessage>> getChatMessages() async {
+    final rows = await _db.query('chat_messages', orderBy: 'time ASC');
+    return rows.map((row) => ChatMessage.fromMap(row)).toList();
+  }
+
+  Future<void> sendChatMessage(String text) async {
+    await _db.insert('chat_messages', {
+      'text': text,
+      'time': DateTime.now().toIso8601String(),
+      'is_me': 1,
+      'is_seen': 1,
+    });
+  }
+
+  Future<void> markMessagesAsSeen() async {
+    await _db.update(
+      'chat_messages',
+      {'is_seen': 1},
+      where: 'is_me = ? AND is_seen = ?',
+      whereArgs: [0, 0],
+    );
+  }
+
+  Future<int> getUnreadCount() async {
+    final rows = await _db.rawQuery(
+      'SELECT COUNT(*) as count FROM chat_messages WHERE is_me = 0 AND is_seen = 0',
+    );
+    return rows.first['count'] as int;
+  }
+}
 //  PARENT DATA
 // ═══════════════════════════════════════════════════════════════════════
 

@@ -2,15 +2,77 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/chat_message_widget.dart';
+import 'package:myapp/services/app_database.dart';
+import 'package:myapp/models/child/chat_message.dart';
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _db = AppDatabase();
+  final _messageController = TextEditingController();
+  final _scrollController = ScrollController();
+  List<ChatMessage> _messages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMessages() async {
+    final messages = await _db.child.getChatMessages();
+    await _db.child.markMessagesAsSeen();
+    if (mounted) setState(() {
+      _messages = messages;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+    
+    _messageController.clear();
+    await _db.child.sendChatMessage(text);
+    await _loadMessages();
+    
+    // Scroll to bottom
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  String _formatTime(DateTime time) {
+    final hour = time.hour;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    return '$displayHour:$minute $period';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(top: 20, left: 16, right: 16, bottom: 100),
-      // The bottom margin ensures we don't overlap the floating navigation bar
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(32),
         gradient: const LinearGradient(
@@ -30,7 +92,9 @@ class ChatScreen extends StatelessWidget {
         children: [
           _buildHeader(),
           Expanded(
-            child: _buildMessageList(),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : _buildMessageList(),
           ),
           _buildInputArea(),
         ],
@@ -51,14 +115,13 @@ class ChatScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Profile Picture with Online indicator
           Stack(
             children: [
               Container(
                 width: 44,
                 height: 44,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFE4D5B7), // Placeholder color for generic user
+                  color: Color(0xFFE4D5B7),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.person, color: Colors.white70),
@@ -72,14 +135,13 @@ class ChatScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFF4ADE80),
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFF2A2A35), width: 2), // visually separate from avatar
+                    border: Border.all(color: const Color(0xFF2A2A35), width: 2),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(width: 12),
-          // Name and Status
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +165,6 @@ class ChatScreen extends StatelessWidget {
               ],
             ),
           ),
-          // Call Button
           IconButton(
             icon: const Icon(Icons.phone_outlined, color: Colors.white),
             onPressed: () {},
@@ -114,30 +175,27 @@ class ChatScreen extends StatelessWidget {
   }
 
   Widget _buildMessageList() {
-    return ListView(
+    if (_messages.isEmpty) {
+      return Center(
+        child: Text(
+          'No messages yet',
+          style: GoogleFonts.poppins(color: AppColors.textGrey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(20),
-      children: const [
-        ChatMessageWidget(
-          text: 'Hi Alex, how was school today?',
-          time: '3:45 PM',
-          isMe: false,
-        ),
-        ChatMessageWidget(
-          text: 'It was good 😌',
-          time: '3:46 PM',
-          isMe: true,
-        ),
-        ChatMessageWidget(
-          text: 'Don\'t forget to sleep early tonight.',
-          time: '3:50 PM',
-          isMe: false,
-        ),
-        ChatMessageWidget(
-          text: 'Okay!',
-          time: '3:51 PM',
-          isMe: true,
-        ),
-      ],
+      itemCount: _messages.length,
+      itemBuilder: (context, index) {
+        final msg = _messages[index];
+        return ChatMessageWidget(
+          text: msg.text,
+          time: _formatTime(msg.time),
+          isMe: msg.isMe,
+        );
+      },
     );
   }
 
@@ -151,14 +209,13 @@ class ChatScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Attachment Icon
           IconButton(
             icon: const Icon(Icons.attach_file, color: Color(0xFF465A7E)),
             onPressed: () {},
           ),
-          // Text Input
           Expanded(
             child: TextField(
+              controller: _messageController,
               style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
               decoration: InputDecoration(
                 hintText: 'Type a message...',
@@ -167,25 +224,27 @@ class ChatScreen extends StatelessWidget {
                 isDense: true,
                 contentPadding: const EdgeInsets.all(0),
               ),
+              onSubmitted: (_) => _sendMessage(),
             ),
           ),
-          // Mic Icon
           IconButton(
             icon: const Icon(Icons.mic_none_outlined, color: Color(0xFF465A7E)),
             onPressed: () {},
           ),
-          // Send Button
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: Color(0xFF263238), // Dark send button wrapper
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Padding(
-                padding: EdgeInsets.only(left: 4.0), // visual centering for send icon
-                child: Icon(Icons.send, color: Colors.white, size: 20),
+          GestureDetector(
+            onTap: _sendMessage,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFF263238),
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Padding(
+                  padding: EdgeInsets.only(left: 4.0),
+                  child: Icon(Icons.send, color: Colors.white, size: 20),
+                ),
               ),
             ),
           ),
