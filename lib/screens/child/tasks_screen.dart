@@ -34,7 +34,8 @@ class _TasksScreenState extends State<TasksScreen> {
     });
   }
 
-  Future<void> _onTaskCompleted() async {
+  Future<void> _onTaskCompleted(int taskId) async {
+    await _db.child.updateTaskState(taskId, TaskState.completed);
     await _db.child.addPoints(3);
     await _loadData();
   }
@@ -73,6 +74,7 @@ class _TasksScreenState extends State<TasksScreen> {
           else
             ...List.generate(_tasks.length, (index) {
               return TaskWidget(
+                taskId: _tasks[index].id,
                 taskName: _tasks[index].name,
                 taskCategory: _tasks[index].category,
                 timerTime: _tasks[index].timerTime,

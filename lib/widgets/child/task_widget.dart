@@ -4,15 +4,17 @@ import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/models/child/task_model.dart';
 
 class TaskWidget extends StatefulWidget {
+  final int taskId;
   final String taskName;
   final String taskCategory;
   final String timerTime;
   final List<Color> gradientColors;
-  final VoidCallback? onCompleted;
+  final Function(int taskId)? onCompleted;
   final TaskState initialState;
 
   const TaskWidget({
     super.key,
+    required this.taskId,
     required this.taskName,
     required this.taskCategory,
     required this.timerTime,
@@ -64,7 +66,7 @@ class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateM
           _currentState = TaskState.completed;
         });
         if (widget.onCompleted != null) {
-          widget.onCompleted!();
+          widget.onCompleted!(widget.taskId);
         }
       }
     });
