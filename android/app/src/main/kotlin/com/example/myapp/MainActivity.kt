@@ -28,6 +28,7 @@ class MainActivity : FlutterActivity() {
     // service yet. These survive as long as the Activity process lives.
     private var vpnRunning = false
     private var locationTrackingRunning = false
+    private val blockedApps = mutableSetOf<String>()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -105,6 +106,43 @@ class MainActivity : FlutterActivity() {
                     // ── Installed Apps ─────────────────────────────────
                     "getAllInstalledApps" -> {
                         result.success(getAllInstalledApps())
+                    }
+
+                    // ── App Blocking ─────────────────────────────────────
+                    "blockApp" -> {
+                        val packageName = call.argument<String>("packageName")
+                        if (packageName != null) {
+                            blockedApps.add(packageName)
+                            GuardianAccessibilityService.updateBlockedPackages(blockedApps)
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_ARGUMENT", "packageName is required", null)
+                        }
+                    }
+                    "unblockApp" -> {
+                        val packageName = call.argument<String>("packageName")
+                        if (packageName != null) {
+                            blockedApps.remove(packageName)
+                            GuardianAccessibilityService.updateBlockedPackages(blockedApps)
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_ARGUMENT", "packageName is required", null)
+                        }
+                    }
+                    "isAppBlocked" -> {
+                        val packageName = call.argument<String>("packageName")
+                        if (packageName != null) {
+                            result.success(blockedApps.contains(packageName))
+                        } else {
+                            result.error("INVALID_ARGUMENT", "packageName is required", null)
+                        }
+                    }
+                    "getBlockedApps" -> {
+                        result.success(blockedApps.toList())
+                    }
+                    "syncBlockedApps" -> {
+                        GuardianAccessibilityService.updateBlockedPackages(blockedApps)
+                        result.success(true)
                     }
 
                     else -> result.notImplemented()

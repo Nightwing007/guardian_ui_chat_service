@@ -107,7 +107,7 @@ class AppDatabase {
       {
         'package_name': 'com.whatsapp',
         'app_name': 'WhatsApp',
-        'allowed_minutes': 180,
+        'allowed_minutes': 300,
       },
       {
         'package_name': 'com.instagram.android',

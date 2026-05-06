@@ -10,6 +10,7 @@ import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/usage_submission_service.dart';
+import 'package:myapp/services/child/app_blocker_service.dart';
 
 class MainLayout extends StatefulWidget {
   final VoidCallback? onReady;
@@ -35,6 +36,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     UsageSubmissionService().stop();
+    AppBlockerService().stopMonitoring();
     super.dispose();
   }
 
@@ -42,6 +44,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       UsageSubmissionService().start();
+      AppBlockerService().startMonitoring();
     } else if (state == AppLifecycleState.paused) {
       UsageSubmissionService().stop();
     }
@@ -49,6 +52,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
 
   Future<void> _initDb() async {
     await AppDatabase().initialize();
+    await AppBlockerService().startMonitoring();
     if (mounted) {
       setState(() => _dbReady = true);
       widget.onReady?.call();
