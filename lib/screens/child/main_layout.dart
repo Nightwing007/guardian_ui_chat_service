@@ -12,7 +12,9 @@ import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/usage_submission_service.dart';
 
 class MainLayout extends StatefulWidget {
-  const MainLayout({super.key});
+  final VoidCallback? onReady;
+
+  const MainLayout({super.key, this.onReady});
 
   @override
   State<MainLayout> createState() => _MainLayoutState();
@@ -47,7 +49,10 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
 
   Future<void> _initDb() async {
     await AppDatabase().initialize();
-    if (mounted) setState(() => _dbReady = true);
+    if (mounted) {
+      setState(() => _dbReady = true);
+      widget.onReady?.call();
+    }
   }
 
   @override

@@ -61,7 +61,7 @@ class AppDatabase {
     await db.insert('child_settings', {
       'id': 1,
       'total_allowed_screen_time_minutes': 600,
-      'total_points': 10,
+      'total_points': 500,
     });
 
     // ── tasks ──

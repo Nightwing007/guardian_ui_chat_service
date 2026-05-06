@@ -17,6 +17,7 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
   final _appUsage = AppUsageService();
   final _monitoring = MonitoringService();
 
+  bool _isLoading = false;
   bool _usagePermission = false;
   bool _accessibilityEnabled = false;
   bool _vpnRunning = false;
@@ -228,29 +229,49 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const MainLayout(),
-                        ),
-                        (route) => false,
-                      );
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            setState(() => _isLoading = true);
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MainLayout(
+                                  onReady: () {
+                                    if (mounted) {
+                                      setState(() => _isLoading = false);
+                                    }
+                                  },
+                                ),
+                              ),
+                              (route) => false,
+                            );
+                          },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryPurple,
+                      backgroundColor: _isLoading
+                          ? AppColors.primaryPurple.withValues(alpha: 0.5)
+                          : AppColors.primaryPurple,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Continue',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
             ],

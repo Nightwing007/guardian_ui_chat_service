@@ -281,7 +281,12 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       );
     }
 
-    if (child.appUsageList.isEmpty) {
+    final appsWithLimits = child.appUsageList
+        .where((app) => _appLimits.containsKey(app.packageName))
+        .take(10)
+        .toList();
+
+    if (appsWithLimits.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
@@ -294,7 +299,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         ),
         child: Center(
           child: Text(
-            'No app usage data yet',
+            'No apps with limits set yet',
             style: GoogleFonts.poppins(
               fontSize: 14,
               color: AppColors.textGrey,
@@ -303,8 +308,6 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         ),
       );
     }
-
-    final appsToShow = child.appUsageList.take(10).toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -318,9 +321,9 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         children: [
-          for (int i = 0; i < appsToShow.length; i++) ...[
-            _buildRealAppUsageItem(app: appsToShow[i]),
-            if (i < appsToShow.length - 1) _buildDivider(),
+          for (int i = 0; i < appsWithLimits.length; i++) ...[
+            _buildRealAppUsageItem(app: appsWithLimits[i]),
+            if (i < appsWithLimits.length - 1) _buildDivider(),
           ],
         ],
       ),
