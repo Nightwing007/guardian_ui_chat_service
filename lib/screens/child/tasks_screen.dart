@@ -27,11 +27,13 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _loadData() async {
     final tasks = await _db.child.getTasks();
     final points = await _db.child.getTotalPoints();
-    if (mounted) setState(() {
-      _tasks = tasks;
-      _totalPoints = points;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _tasks = tasks;
+        _totalPoints = points;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _onTaskCompleted(int taskId) async {

@@ -50,10 +50,12 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   Future<void> _loadSettings() async {
     final allowed = await _db.child.getTotalAllowedScreenTimeMinutes();
     final points = await _db.child.getTotalPoints();
-    if (mounted) setState(() {
-      _allowedScreenTimeMinutes = allowed;
-      _totalPoints = points;
-    });
+    if (mounted) {
+      setState(() {
+        _allowedScreenTimeMinutes = allowed;
+        _totalPoints = points;
+      });
+    }
   }
 
   String _formatDuration(Duration d) {
@@ -345,13 +347,12 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
 
     final allowedMinutes = _appLimits[app.packageName];
     final usedHours = app.totalTimeInForeground.inMinutes / 60.0;
-    final usedMinutes = app.totalTimeInForeground.inMinutes;
     
     String timeString;
     bool hasLimit = allowedMinutes != null;
     
     if (hasLimit) {
-      final allowedHours = allowedMinutes! / 60;
+      final allowedHours = allowedMinutes / 60;
       timeString = '${usedHours.toStringAsFixed(1)}hr / ${allowedHours.toStringAsFixed(1)}hr';
     } else {
       timeString = _formatDuration(app.totalTimeInForeground);

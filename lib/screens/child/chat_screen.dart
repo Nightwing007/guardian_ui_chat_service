@@ -35,10 +35,12 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadMessages() async {
     final messages = await _db.child.getChatMessages();
     await _db.child.markMessagesAsSeen();
-    if (mounted) setState(() {
-      _messages = messages;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _messages = messages;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _sendMessage() async {

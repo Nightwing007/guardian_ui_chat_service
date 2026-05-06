@@ -109,7 +109,7 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
           decoration: BoxDecoration(
             color: const Color(0xFF111111),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: _buildContent(),
         ),

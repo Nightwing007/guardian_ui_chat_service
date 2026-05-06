@@ -50,7 +50,7 @@ class ParentChatMessageWidget extends StatelessWidget {
                 time,
                 style: GoogleFonts.poppins(
                   fontSize: 11,
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                 ),
               ),
               if (isMe) ...[
@@ -58,7 +58,7 @@ class ParentChatMessageWidget extends StatelessWidget {
                 Icon(
                   isSeen ? Icons.done_all : Icons.check,
                   size: 14,
-                  color: isSeen ? Colors.blue : Colors.white.withOpacity(0.5),
+                  color: isSeen ? Colors.blue : Colors.white.withValues(alpha: 0.5),
                 ),
               ]
             ],

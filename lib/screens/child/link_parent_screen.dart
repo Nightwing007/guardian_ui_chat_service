@@ -226,11 +226,9 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                 ],
               ),
             ),
-            Radio<int>(
-              value: isSelected ? 1 : 0,
-              groupValue: isSelected ? 1 : 0,
-              onChanged: (_) => onTap(),
-              activeColor: AppColors.accentBlue,
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? AppColors.accentBlue : AppColors.textGrey,
             ),
           ],
         ),

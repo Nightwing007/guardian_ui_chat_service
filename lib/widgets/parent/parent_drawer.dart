@@ -27,7 +27,7 @@ class ParentDrawer extends StatelessWidget {
                     child: Container(
                       height: 48,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: Row(
@@ -58,7 +58,7 @@ class ParentDrawer extends StatelessWidget {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.close, color: Colors.white, size: 16),
@@ -111,7 +111,7 @@ class ParentDrawer extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isHighlighted ? AppColors.parentDrawerIconBg : Colors.white.withOpacity(0.05),
+              color: isHighlighted ? AppColors.parentDrawerIconBg : Colors.white.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: Icon(

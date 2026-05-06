@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:myapp/screens/parent/parent_signup_screen.dart';
 import 'package:myapp/screens/parent/parent_main_layout.dart';
-import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/session_service.dart';
 

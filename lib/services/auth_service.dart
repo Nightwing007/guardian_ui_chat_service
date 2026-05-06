@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   static const String baseUrl = 'http://192.168.20.10:8000';
@@ -25,8 +26,8 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 10));
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -43,8 +44,8 @@ class AuthService {
         };
       }
     } catch (e, stackTrace) {
-      print('AuthService Error: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('AuthService Error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Network error: Please check your connection ($e)',
@@ -68,8 +69,8 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 10));
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -82,8 +83,8 @@ class AuthService {
         };
       }
     } catch (e, stackTrace) {
-      print('AuthService Error: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('AuthService Error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Network error: Please check your connection ($e)',
@@ -118,8 +119,8 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 10));
 
-      print('addChildAccount status: ${response.statusCode}');
-      print('addChildAccount body: ${response.body}');
+      debugPrint('addChildAccount status: ${response.statusCode}');
+      debugPrint('addChildAccount body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -138,7 +139,10 @@ class AuthService {
     } catch (e, stackTrace) {
       print('addChildAccount error: $e');
       print('Stack trace: $stackTrace');
-      return {'success': false, 'message': 'Network error ($e)'};
+      return {
+        'success': false,
+        'message': 'Network error ($e)',
+      };
     }
   }
 
@@ -158,8 +162,8 @@ class AuthService {
           .get(uri, headers: {'X-Email': email, 'X-Password': password})
           .timeout(const Duration(seconds: 10));
 
-      print('getChildUsage status: ${response.statusCode}');
-      print('getChildUsage body: ${response.body}');
+      debugPrint('getChildUsage status: ${response.statusCode}');
+      debugPrint('getChildUsage body: ${response.body}');
 
       final data = jsonDecode(response.body);
 

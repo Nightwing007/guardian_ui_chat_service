@@ -23,7 +23,7 @@ class SummaryScreenTimeCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.screen_lock_portrait, color: Colors.white, size: 20),
@@ -50,7 +50,7 @@ class SummaryScreenTimeCard extends StatelessWidget {
                     width: 70,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                     child: FractionallySizedBox(

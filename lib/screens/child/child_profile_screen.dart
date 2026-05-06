@@ -114,7 +114,7 @@ class ChildProfileScreen extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,7 +122,7 @@ class ChildProfileScreen extends StatelessWidget {
                     Text(
                       'SAFETY SETTINGS',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
@@ -188,14 +188,14 @@ class ChildProfileScreen extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                 ),
                 child: Column(
                   children: [
                     _buildLinkRow(icon: Icons.help_outline, title: 'Why this app helps me stay safe'),
-                    Divider(color: Colors.white.withOpacity(0.1), height: 1, indent: 20, endIndent: 20),
+                    Divider(color: Colors.white.withValues(alpha: 0.1), height: 1, indent: 20, endIndent: 20),
                     _buildLinkRow(icon: Icons.privacy_tip_outlined, title: 'Privacy information'),
-                    Divider(color: Colors.white.withOpacity(0.1), height: 1, indent: 20, endIndent: 20),
+                    Divider(color: Colors.white.withValues(alpha: 0.1), height: 1, indent: 20, endIndent: 20),
                     _buildLinkRow(icon: Icons.support_agent, title: 'Help & Support'),
                   ],
                 ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/alert_card.dart';
 
 class AlertsScreen extends StatelessWidget {

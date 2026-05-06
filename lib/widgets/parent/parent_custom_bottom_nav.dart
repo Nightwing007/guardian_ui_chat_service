@@ -77,7 +77,7 @@ class ParentCustomBottomNav extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF268AE4).withOpacity(0.3),
+                    color: const Color(0xFF268AE4).withValues(alpha: 0.3),
                     blurRadius: 10,
                     spreadRadius: 2,
                   )
