@@ -4,6 +4,7 @@ import 'package:myapp/screens/parent/parent_signup_screen.dart';
 import 'package:myapp/screens/parent/parent_main_layout.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/session_service.dart';
 
 class ParentLoginScreen extends StatefulWidget {
   const ParentLoginScreen({super.key});
@@ -59,6 +60,14 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
       final childHash = children.isNotEmpty
           ? (children[0] as Map<String, dynamic>)['child_hash'] as String
           : '';
+
+      if (_keepMeSignedIn) {
+        await SessionService.saveParentSession(
+          email: email,
+          password: password,
+          childHash: childHash,
+        );
+      }
 
       Navigator.pushAndRemoveUntil(
         context,

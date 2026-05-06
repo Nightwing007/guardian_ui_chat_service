@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/create_child_account_bottom_sheet.dart';
 import 'package:myapp/screens/parent/connected_children_screen.dart';
+import 'package:myapp/services/session_service.dart';
+import 'package:myapp/screens/welcome_screen.dart';
 
 class ParentProfileScreen extends StatefulWidget {
   final String email;
