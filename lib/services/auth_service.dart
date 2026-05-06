@@ -51,4 +51,50 @@ class AuthService {
       };
     }
   }
+
+  Future<Map<String, dynamic>> loginParent({
+    required String email,
+    required String password,
+  }) async {
+    print('AuthService.loginParent called');
+    print('Attempting to connect to: $baseUrl/api/login/');
+    
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/login/'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': 'Login successful',
+          'data': data,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Invalid email or password',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('AuthService Error: $e');
+      print('Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'message': 'Network error: Please check your connection ($e)',
+      };
+    }
+  }
 }

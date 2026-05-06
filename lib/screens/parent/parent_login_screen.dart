@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:myapp/screens/parent/parent_signup_screen.dart';
 import 'package:myapp/screens/parent/parent_main_layout.dart';
 import 'package:myapp/theme/app_colors.dart';
+import 'package:myapp/services/auth_service.dart';
 
 class ParentLoginScreen extends StatefulWidget {
   const ParentLoginScreen({super.key});
@@ -14,6 +15,61 @@ class ParentLoginScreen extends StatefulWidget {
 class _ParentLoginScreenState extends State<ParentLoginScreen> {
   bool _keepMeSignedIn = true;
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter email and password')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final result = await AuthService().loginParent(
+      email: email,
+      password: password,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (result['success']) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ParentMainLayout(),
+        ),
+        (route) => false,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +115,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
               SizedBox(
                 height: 52,
                 child: TextField(
+                  controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
@@ -109,6 +166,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
               SizedBox(
                 height: 52,
                 child: TextField(
+                  controller: _passwordController,
                   obscureText: _obscurePassword,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
@@ -178,15 +236,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ParentMainLayout(),
-                      ),
-                      (route) => false,
-                    );
-                  },
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF281372), // Deep purple
                     shape: RoundedRectangleBorder(
@@ -194,14 +244,23 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 32),
