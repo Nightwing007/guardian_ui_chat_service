@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:myapp/screens/parent/parent_login_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
+import 'package:myapp/services/auth_service.dart';
 
 class ParentSignupScreen extends StatefulWidget {
   const ParentSignupScreen({super.key});
@@ -12,6 +13,65 @@ class ParentSignupScreen extends StatefulWidget {
 
 class _ParentSignupScreenState extends State<ParentSignupScreen> {
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSignUp() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final result = await AuthService().registerParent(
+      name: name,
+      email: email,
+      password: password,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (result['success']) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'])),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const ParentLoginScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +108,7 @@ class _ParentSignupScreenState extends State<ParentSignupScreen> {
               SizedBox(
                 height: 52,
                 child: TextField(
+                  controller: _nameController,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Sushant Kumar',
@@ -81,6 +142,7 @@ class _ParentSignupScreenState extends State<ParentSignupScreen> {
               SizedBox(
                 height: 52,
                 child: TextField(
+                  controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
@@ -115,6 +177,7 @@ class _ParentSignupScreenState extends State<ParentSignupScreen> {
               SizedBox(
                 height: 52,
                 child: TextField(
+                  controller: _passwordController,
                   obscureText: _obscurePassword,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
@@ -168,9 +231,7 @@ class _ParentSignupScreenState extends State<ParentSignupScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Navigate back to login or to main dashboard
-                  },
+                  onPressed: _isLoading ? null : _handleSignUp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF281372),
                     shape: RoundedRectangleBorder(
@@ -178,14 +239,23 @@ class _ParentSignupScreenState extends State<ParentSignupScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Sign Up',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Sign Up',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 32),
