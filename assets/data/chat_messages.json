@@ -1,0 +1,20 @@
+[
+  {
+    "text": "Hello! I'm your personal AI Assistant Guardian.",
+    "time": "10:25",
+    "isme": false,
+    "isseen": true
+  },
+  {
+    "text": "Hi Guardian, could you provide me with an update on Arav's screen time and activity?",
+    "time": "11:25",
+    "isme": true,
+    "isseen": true
+  },
+  {
+    "text": "Do Androids Dream of Electric Sheep? is a 1968 dystopian science fiction novel by American writer Philip K. Dick. Set in a post-apocalyptic San Francisco, the story unfolds after a devastating global war.\n\n1. Androids and Humans: The novel explores the uneasy coexistence of humans and androids. Androids, manufactured on Mars, rebel, kill their owners, and escape to Earth, where they hope to remain undetected.\n2. Empathy and Identity: To distinguish androids from humans, the Voigt-Kampff Test measures emotional responses.",
+    "time": "11:26",
+    "isme": false,
+    "isseen": true
+  }
+]
