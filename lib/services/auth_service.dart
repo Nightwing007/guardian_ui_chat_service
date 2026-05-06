@@ -97,4 +97,46 @@ class AuthService {
       };
     }
   }
+
+  Future<Map<String, dynamic>> getChildUsage({
+    required String email,
+    required String password,
+    required String childHash,
+    String? date,
+  }) async {
+    print('AuthService.getChildUsage called for $childHash');
+    final uri = Uri.parse('$baseUrl/api/mobile/children/$childHash/usage')
+        .replace(queryParameters: date != null ? {'date': date} : null);
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          'X-Email': email,
+          'X-Password': password,
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      print('getChildUsage status: ${response.statusCode}');
+      print('getChildUsage body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to fetch usage',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('getChildUsage error: $e');
+      print('Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'message': 'Network error ($e)',
+      };
+    }
+  }
 }

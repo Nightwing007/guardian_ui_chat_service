@@ -54,10 +54,20 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
     });
 
     if (result['success']) {
+      final data = result['data'] as Map<String, dynamic>;
+      final children = data['children'] as List<dynamic>;
+      final childHash = children.isNotEmpty
+          ? (children[0] as Map<String, dynamic>)['child_hash'] as String
+          : '';
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => const ParentMainLayout(),
+          builder: (context) => ParentMainLayout(
+            email: email,
+            password: password,
+            childHash: childHash,
+          ),
         ),
         (route) => false,
       );

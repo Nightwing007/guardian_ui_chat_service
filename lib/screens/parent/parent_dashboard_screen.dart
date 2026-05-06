@@ -10,7 +10,16 @@ import 'package:myapp/widgets/parent/summary_risk_signals_card.dart';
 import 'package:myapp/widgets/parent/summary_active_alerts_card.dart';
 
 class ParentDashboardScreen extends StatelessWidget {
-  const ParentDashboardScreen({super.key});
+  final String email;
+  final String password;
+  final String childHash;
+
+  const ParentDashboardScreen({
+    super.key,
+    required this.email,
+    required this.password,
+    required this.childHash,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +186,11 @@ class ParentDashboardScreen extends StatelessWidget {
               const SizedBox(height: 32),
               
               // App Usage Details
-              const AppUsageDetailsCard(),
+              AppUsageDetailsCard(
+                email: email,
+                password: password,
+                childHash: childHash,
+              ),
               
               const SizedBox(height: 80), // Padding for bottom nav & FAB
             ],

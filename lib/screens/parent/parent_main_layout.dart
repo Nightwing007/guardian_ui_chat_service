@@ -7,7 +7,16 @@ import 'package:myapp/screens/parent/connect_screen.dart';
 import 'package:myapp/widgets/parent/parent_custom_bottom_nav.dart';
 
 class ParentMainLayout extends StatefulWidget {
-  const ParentMainLayout({super.key});
+  final String email;
+  final String password;
+  final String childHash;
+
+  const ParentMainLayout({
+    super.key,
+    required this.email,
+    required this.password,
+    required this.childHash,
+  });
 
   @override
   State<ParentMainLayout> createState() => _ParentMainLayoutState();
@@ -26,7 +35,11 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       },
     ),
     const AlertsScreen(),
-    const ParentDashboardScreen(),
+    ParentDashboardScreen(
+      email: widget.email,
+      password: widget.password,
+      childHash: widget.childHash,
+    ),
     CommandCenterScreen(
       onBack: () {
         setState(() {
