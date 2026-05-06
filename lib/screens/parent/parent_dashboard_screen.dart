@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/parent_drawer.dart';
 import 'package:myapp/widgets/parent/pending_request_card.dart';
 import 'package:myapp/widgets/parent/screen_time_trends_card.dart';

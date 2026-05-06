@@ -1,16 +1,17 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.1.4:8000';
+  static const String baseUrl = 'http://192.168.29.100:8000';
 
   Future<Map<String, dynamic>> registerParent({
     required String name,
     required String email,
     required String password,
   }) async {
-    print('AuthService.registerParent called');
-    print('Attempting to connect to: $baseUrl/api/signup/');
+    debugPrint('AuthService.registerParent called');
+    debugPrint('Attempting to connect to: $baseUrl/api/signup/');
     
     try {
       final response = await http.post(
@@ -25,8 +26,8 @@ class AuthService {
         }),
       ).timeout(const Duration(seconds: 10));
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -43,8 +44,8 @@ class AuthService {
         };
       }
     } catch (e, stackTrace) {
-      print('AuthService Error: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('AuthService Error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Network error: Please check your connection ($e)',
@@ -56,8 +57,8 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    print('AuthService.loginParent called');
-    print('Attempting to connect to: $baseUrl/api/login/');
+    debugPrint('AuthService.loginParent called');
+    debugPrint('Attempting to connect to: $baseUrl/api/login/');
     
     try {
       final response = await http.post(
@@ -71,8 +72,8 @@ class AuthService {
         }),
       ).timeout(const Duration(seconds: 10));
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -89,8 +90,8 @@ class AuthService {
         };
       }
     } catch (e, stackTrace) {
-      print('AuthService Error: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('AuthService Error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Network error: Please check your connection ($e)',
@@ -105,8 +106,8 @@ class AuthService {
     String? lastName,
     String? dateOfBirth,
   }) async {
-    print('AuthService.addChildAccount called');
-    print('Attempting to connect to: $baseUrl/api/mobile/children/add/');
+    debugPrint('AuthService.addChildAccount called');
+    debugPrint('Attempting to connect to: $baseUrl/api/mobile/children/add/');
     
     try {
       final body = <String, dynamic>{
@@ -125,8 +126,8 @@ class AuthService {
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
 
-      print('addChildAccount status: ${response.statusCode}');
-      print('addChildAccount body: ${response.body}');
+      debugPrint('addChildAccount status: ${response.statusCode}');
+      debugPrint('addChildAccount body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -143,8 +144,8 @@ class AuthService {
         };
       }
     } catch (e, stackTrace) {
-      print('addChildAccount error: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('addChildAccount error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Network error ($e)',
@@ -158,7 +159,7 @@ class AuthService {
     required String childHash,
     String? date,
   }) async {
-    print('AuthService.getChildUsage called for $childHash');
+    debugPrint('AuthService.getChildUsage called for $childHash');
     final uri = Uri.parse('$baseUrl/api/mobile/children/$childHash/usage')
         .replace(queryParameters: date != null ? {'date': date} : null);
 
@@ -171,8 +172,8 @@ class AuthService {
         },
       ).timeout(const Duration(seconds: 10));
 
-      print('getChildUsage status: ${response.statusCode}');
-      print('getChildUsage body: ${response.body}');
+      debugPrint('getChildUsage status: ${response.statusCode}');
+      debugPrint('getChildUsage body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -185,8 +186,8 @@ class AuthService {
         };
       }
     } catch (e, stackTrace) {
-      print('getChildUsage error: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('getChildUsage error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Network error ($e)',

@@ -1,0 +1,67 @@
+﻿Analyzing guardian-ai-ui...                                     
+
+warning - Unused import: 'package:myapp/screens/child/main_layout.dart' - lib\main.dart:3:8 - unused_import
+   info - Statements in an if should be enclosed in a block - lib\screens\child\chat_screen.dart:38:18 - curly_braces_in_flow_control_structures
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\screens\child\child_permissions_screen.dart:362:13 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\child\child_profile_screen.dart:117:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\child\child_profile_screen.dart:125:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\child\child_profile_screen.dart:191:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\child\child_profile_screen.dart:196:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\child\child_profile_screen.dart:198:49 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\screens\child\link_parent_screen.dart:231:15 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\screens\child\link_parent_screen.dart:232:15 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - lib\screens\child\screen_time_screen.dart:53:18 - curly_braces_in_flow_control_structures
+warning - The value of the local variable 'usedMinutes' isn't used - lib\screens\child\screen_time_screen.dart:345:11 - unused_local_variable
+warning - The '!' will have no effect because the receiver can't be null - lib\screens\child\screen_time_screen.dart:351:42 - unnecessary_non_null_assertion
+   info - Statements in an if should be enclosed in a block - lib\screens\child\tasks_screen.dart:30:18 - curly_braces_in_flow_control_structures
+warning - Unused import: 'package:myapp/theme/app_colors.dart' - lib\screens\parent\alerts_screen.dart:2:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\parent\connect_screen.dart:137:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\parent\connect_screen.dart:180:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\parent\connect_screen.dart:192:76 - deprecated_member_use
+warning - Unused import: 'package:myapp/theme/app_colors.dart' - lib\screens\parent\parent_dashboard_screen.dart:2:8 - unused_import
+warning - Unused import: 'package:myapp/theme/app_colors.dart' - lib\screens\parent\parent_login_screen.dart:5:8 - unused_import
+warning - Unused import: 'package:myapp/theme/app_colors.dart' - lib\screens\parent\parent_signup_screen.dart:4:8 - unused_import
+warning - Unused import: 'package:myapp/screens/child/main_layout.dart' - lib\screens\role_selection_screen.dart:2:8 - unused_import
+warning - Unused import: 'package:myapp/screens/child/child_permissions_screen.dart' - lib\screens\role_selection_screen.dart:4:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\role_selection_screen.dart:120:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\welcome_screen.dart:24:50 - deprecated_member_use
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:12:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:13:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:28:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:29:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:46:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:47:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:59:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:60:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:74:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:75:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:92:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:93:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:108:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:109:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:128:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:129:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:146:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:147:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:161:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:174:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:175:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:188:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\auth_service.dart:189:7 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\app_usage_details_card.dart:112:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\parent_chat_message_widget.dart:53:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\parent_chat_message_widget.dart:61:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\parent_custom_bottom_nav.dart:80:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\parent_drawer.dart:30:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\parent_drawer.dart:61:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\parent_drawer.dart:114:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\pending_request_card.dart:38:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\screen_time_trends_card.dart:57:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\summary_active_alerts_card.dart:26:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\summary_risk_signals_card.dart:26:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\summary_risk_signals_card.dart:42:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\summary_screen_time_card.dart:26:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\summary_screen_time_card.dart:53:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\summary_top_apps_card.dart:26:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\parent\summary_top_apps_card.dart:65:29 - deprecated_member_use
+

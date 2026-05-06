@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/screens/child/main_layout.dart';
 import 'package:myapp/screens/child/link_parent_screen.dart';
-import 'package:myapp/screens/child/child_permissions_screen.dart';
 import 'package:myapp/screens/parent/parent_login_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 class RoleSelectionScreen extends StatelessWidget {
@@ -117,7 +115,7 @@ class _RoleCard extends StatelessWidget {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: AppColors.primaryPurple.withOpacity(0.2),
+                color: AppColors.primaryPurple.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: Icon(

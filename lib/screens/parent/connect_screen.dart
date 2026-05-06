@@ -134,7 +134,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Divider(color: Colors.white.withOpacity(0.1), height: 1),
+                Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
               ],
             ),
           ),
@@ -177,7 +177,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E), // Dark background matching design
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
               ),
               child: Row(
                 children: [
@@ -189,7 +189,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                       style: GoogleFonts.poppins(color: Colors.white, fontSize: 16),
                       decoration: InputDecoration(
                         hintText: 'Message',
-                        hintStyle: GoogleFonts.poppins(color: Colors.white.withOpacity(0.8), fontSize: 16),
+                        hintStyle: GoogleFonts.poppins(color: Colors.white.withValues(alpha: 0.8), fontSize: 16),
                         border: InputBorder.none,
                       ),
                     ),
