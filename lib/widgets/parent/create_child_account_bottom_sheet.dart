@@ -105,7 +105,12 @@ class _CreateChildAccountBottomSheetState extends State<CreateChildAccountBottom
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
       decoration: const BoxDecoration(
         color: Color(0xFF1E1E20),
         borderRadius: BorderRadius.only(
@@ -113,7 +118,7 @@ class _CreateChildAccountBottomSheetState extends State<CreateChildAccountBottom
           topRight: Radius.circular(24),
         ),
       ),
-      child: SafeArea(
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

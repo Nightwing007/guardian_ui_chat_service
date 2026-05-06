@@ -3,7 +3,6 @@ import 'package:myapp/screens/parent/blocked_apps_sites_screen.dart';
 import 'package:myapp/screens/parent/set_app_timing_screen.dart';
 import 'package:myapp/screens/parent/assign_task_screen.dart';
 import 'package:myapp/widgets/parent/set_screen_time_bottom_sheet.dart';
-import 'package:myapp/widgets/parent/create_child_account_bottom_sheet.dart';
 import 'package:myapp/theme/app_colors.dart';
 
 class CommandCenterScreen extends StatefulWidget {
@@ -61,28 +60,6 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               children: [
                 const SizedBox(height: 12),
-                
-                // Create Child Account Card
-                _buildActionCard(
-                  title: 'Create Child Account',
-                  subtitlePrefix: 'Add a new child to your family',
-                  gradient: const [AppColors.primaryGradientEnd, AppColors.primaryGradientStart],
-                  trailing: _buildIconBtn(Icons.arrow_forward_ios, size: 14, onTap: () async {
-                    final result = await showModalBottomSheet<bool>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => CreateChildAccountBottomSheet(
-                        email: widget.email,
-                        password: widget.password,
-                      ),
-                    );
-                    if (result == true && mounted) {
-                      setState(() {});
-                    }
-                  }),
-                ),
-                const SizedBox(height: 16),
                 
                 const Text(
                   'Screen Time',

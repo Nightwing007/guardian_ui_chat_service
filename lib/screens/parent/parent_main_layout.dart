@@ -4,6 +4,7 @@ import 'package:myapp/screens/parent/alerts_screen.dart';
 import 'package:myapp/screens/parent/command_center_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/parent/connect_screen.dart';
+import 'package:myapp/screens/parent/parent_profile_screen.dart';
 import 'package:myapp/widgets/parent/parent_custom_bottom_nav.dart';
 
 class ParentMainLayout extends StatefulWidget {
@@ -49,7 +50,18 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       email: widget.email,
       password: widget.password,
     ),
-    const Center(child: Text("Profile", style: TextStyle(color: Colors.white, fontSize: 24))),
+    ParentProfileScreen(
+      email: widget.email,
+      password: widget.password,
+      onBack: () {
+        setState(() {
+          _currentIndex = 2;
+        });
+      },
+      onLogout: () {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      },
+    ),
   ];
 
   @override
