@@ -158,7 +158,7 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,54 +182,48 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
                 ),
               ),
               const SizedBox(height: 32),
-              Expanded(
-                child: ListView(
-                  children: [
-                    _buildPermissionItem(
-                      title: 'Usage Access',
-                      description:
-                          'Required to monitor app usage and screen time.',
-                      icon: Icons.data_usage,
-                      value: _usagePermission,
-                      onChanged: (_) => _requestUsageStats(),
-                    ),
-                    _buildPermissionItem(
-                      title: 'Accessibility Service',
-                      description:
-                          'Used for URL monitoring and content filtering.',
-                      icon: Icons.accessibility,
-                      value: _accessibilityEnabled,
-                      onChanged: (_) => _requestAccessibility(),
-                    ),
-                    _buildPermissionItem(
-                      title: 'VPN Monitoring',
-                      description: 'Required to block harmful content.',
-                      icon: Icons.vpn_lock,
-                      value: _vpnRunning,
-                      onChanged: (_) => _toggleVpn(),
-                    ),
-                    _buildPermissionItem(
-                      title: 'Location Tracking',
-                      description:
-                          'Required for location sharing with your parents.',
-                      icon: Icons.location_on,
-                      value: _locationRunning,
-                      onChanged: (_) => _toggleLocationTracking(),
-                    ),
-                    _buildPermissionItem(
-                      title: 'Overlay Permission',
-                      description:
-                          'Required to display alerts over other apps.',
-                      icon: Icons.layers,
-                      value: _overlayPermission,
-                      onChanged: (_) => _toggleOverlay(),
-                      optional: true,
-                    ),
-                  ],
-                ),
+              _buildPermissionItem(
+                title: 'Usage Access',
+                description:
+                    'Required to monitor app usage and screen time.',
+                icon: Icons.data_usage,
+                value: _usagePermission,
+                onChanged: (_) => _requestUsageStats(),
               ),
-              if (_ready) ...[
-                const SizedBox(height: 24),
+              _buildPermissionItem(
+                title: 'Accessibility Service',
+                description:
+                    'Used for URL monitoring and content filtering.',
+                icon: Icons.accessibility,
+                value: _accessibilityEnabled,
+                onChanged: (_) => _requestAccessibility(),
+              ),
+              _buildPermissionItem(
+                title: 'VPN Monitoring',
+                description: 'Required to block harmful content.',
+                icon: Icons.vpn_lock,
+                value: _vpnRunning,
+                onChanged: (_) => _toggleVpn(),
+              ),
+              _buildPermissionItem(
+                title: 'Location Tracking',
+                description:
+                    'Required for location sharing with your parents.',
+                icon: Icons.location_on,
+                value: _locationRunning,
+                onChanged: (_) => _toggleLocationTracking(),
+              ),
+              _buildPermissionItem(
+                title: 'Overlay Permission',
+                description:
+                    'Required to display alerts over other apps.',
+                icon: Icons.layers,
+                value: _overlayPermission,
+                onChanged: (_) => _toggleOverlay(),
+                optional: true,
+              ),
+              const SizedBox(height: 24),
+              if (_ready)
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -259,7 +253,6 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
                     ),
                   ),
                 ),
-              ],
             ],
           ),
         ),
@@ -285,7 +278,7 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: value
-              ? AppColors.accentBlue.withOpacity(0.4)
+              ? AppColors.accentBlue.withValues(alpha: 0.4)
               : AppColors.surfaceOverlay,
           width: 1,
         ),
@@ -297,8 +290,8 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
             height: 48,
             decoration: BoxDecoration(
               color: value
-                  ? AppColors.accentBlue.withOpacity(0.2)
-                  : AppColors.primaryPurple.withOpacity(0.2),
+                  ? AppColors.accentBlue.withValues(alpha: 0.2)
+                  : AppColors.primaryPurple.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -307,19 +300,24 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
               size: 24,
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
+          const SizedBox(width: 12),
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (optional) ...[
@@ -351,6 +349,8 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
                     fontSize: 12,
                     color: AppColors.textGrey,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -360,7 +360,7 @@ class _ChildPermissionsScreenState extends State<ChildPermissionsScreen>
             value: value,
             onChanged: onChanged,
             activeColor: AppColors.accentBlue,
-            activeTrackColor: AppColors.accentBlue.withOpacity(0.5),
+            activeTrackColor: AppColors.accentBlue.withValues(alpha: 0.5),
           ),
         ],
       ),
