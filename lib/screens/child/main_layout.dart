@@ -8,6 +8,7 @@ import 'package:myapp/screens/child/child_profile_screen.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
+import 'package:myapp/services/app_database.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -18,6 +19,18 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
+  bool _dbReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDb();
+  }
+
+  Future<void> _initDb() async {
+    await AppDatabase().initialize();
+    if (mounted) setState(() => _dbReady = true);
+  }
 
   @override
   Widget build(BuildContext context) {

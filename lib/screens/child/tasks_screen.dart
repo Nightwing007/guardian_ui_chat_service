@@ -1,10 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/task_widget.dart';
-import 'package:myapp/services/child/user_data.dart';
+import 'package:myapp/services/app_database.dart';
 import 'package:myapp/models/child/task_model.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -15,34 +13,34 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  int _completedTasks = 0;
-  int _totalTasks = 0;
+  final _db = AppDatabase();
   List<TaskModel> _tasks = [];
+  int _totalPoints = 10;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadTasks();
+    _loadData();
   }
 
-  Future<void> _loadTasks() async {
-    final String jsonString = await rootBundle.loadString('assets/data/tasks.json');
-    final List<dynamic> jsonList = await json.decode(jsonString);
-    setState(() {
-      _tasks = jsonList.map((json) => TaskModel.fromJson(json)).toList();
-      _totalTasks = _tasks.length;
-      _completedTasks = _tasks.where((task) => task.state == TaskState.completed).length;
+  Future<void> _loadData() async {
+    final tasks = await _db.child.getTasks();
+    final points = await _db.child.getTotalPoints();
+    if (mounted) setState(() {
+      _tasks = tasks;
+      _totalPoints = points;
+      _isLoading = false;
     });
   }
 
-  void _incrementCompletedTasks() {
-    setState(() {
-      if (_completedTasks < _totalTasks) {
-        _completedTasks++;
-        UserData.points += 3;
-      }
-    });
+  Future<void> _onTaskCompleted() async {
+    await _db.child.addPoints(3);
+    await _loadData();
   }
+
+  int get _completedTasks => _tasks.where((t) => t.state == TaskState.completed).length;
+  int get _totalTasks => _tasks.length;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +68,7 @@ class _TasksScreenState extends State<TasksScreen> {
           const SizedBox(height: 24),
           _buildSummaryCard(),
           const SizedBox(height: 24),
-          if (_tasks.isEmpty)
+          if (_isLoading)
             const Center(child: CircularProgressIndicator(color: Colors.white))
           else
             ...List.generate(_tasks.length, (index) {
@@ -79,7 +77,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 taskCategory: _tasks[index].category,
                 timerTime: _tasks[index].timerTime,
                 gradientColors: AppColors.allTaskGradients[index % AppColors.allTaskGradients.length],
-                onCompleted: _incrementCompletedTasks,
+                onCompleted: _onTaskCompleted,
                 initialState: _tasks[index].state,
               );
             }),
@@ -130,7 +128,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
-                      '${UserData.points} pts',
+                      '$_totalPoints pts',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -142,7 +140,7 @@ class _TasksScreenState extends State<TasksScreen> {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                width: 200, // Constrain width so text wraps and doesn't overlap image
+                width: 200,
                 child: Text(
                   'Complete tasks to unlock\nyour screen time',
                   style: GoogleFonts.poppins(
@@ -154,7 +152,7 @@ class _TasksScreenState extends State<TasksScreen> {
               ),
               const SizedBox(height: 24),
               SizedBox(
-                width: 200, // Match width constrain
+                width: 200,
                 child: Column(
                   children: [
                     Row(
@@ -186,7 +184,7 @@ class _TasksScreenState extends State<TasksScreen> {
                         value: progress,
                         minHeight: 8,
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        color: Colors.white, // White thumb
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -198,7 +196,7 @@ class _TasksScreenState extends State<TasksScreen> {
             right: 0,
             bottom: 0,
             child: SizedBox(
-               width: 140, // Increased width for the new illustration
+               width: 140,
                child: Image.asset(
                  'assets/images/task-summary-ill.png',
                  fit: BoxFit.contain,

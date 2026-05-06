@@ -1,11 +1,14 @@
-import 'package:myapp/widgets/child/task_widget.dart';
+/// Represents the lifecycle state of a task.
+enum TaskState { initial, accepted, completed }
 
 class TaskModel {
   final int id;
   final String name;
   final String category;
   final String timerTime;
-  final TaskState state;
+
+  /// Mutable so that screens can update state in the central DB.
+  TaskState state;
 
   TaskModel({
     required this.id,

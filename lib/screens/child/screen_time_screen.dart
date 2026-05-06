@@ -4,7 +4,7 @@ import 'package:percent_indicator/percent_indicator.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/buy_additional_time_dialog.dart';
-import 'package:myapp/services/child/user_data.dart';
+import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/app_usage_service.dart';
 import 'package:myapp/services/child/app_icon_cache.dart';
 class ScreenTimeScreen extends StatefulWidget {
@@ -22,42 +22,38 @@ class ScreenTimeScreen extends StatefulWidget {
 }
 
 class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
-  final _appUsageService = AppUsageService();
+  final _db = AppDatabase();
   final _appIconCache = AppIconCache();
-
-  List<AppUsageInfo> _todayUsage = [];
-  Duration _totalScreenTime = Duration.zero;
-  bool _loading = true;
+  Map<String, int> _appLimits = {};
+  int _allowedScreenTimeMinutes = 240;
+  int _totalPoints = 10;
 
   @override
   void initState() {
     super.initState();
     _appIconCache.preloadApps();
-    _loadUsageData();
+    _refreshUsage();
+    _loadAppLimits();
+    _loadSettings();
   }
 
-  Future<void> _loadUsageData() async {
-    final hasPermission = await _appUsageService.hasUsageStatsPermission();
-    if (!hasPermission) {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-      return;
-    }
+  Future<void> _refreshUsage() async {
+    await _db.child.refreshUsageData();
+    if (mounted) setState(() {});
+  }
 
-    final usage = await _appUsageService.getTodayUsage();
-    final totalMs = usage.fold<int>(
-      0,
-      (sum, app) => sum + app.totalTimeInForeground.inMilliseconds,
-    );
+  Future<void> _loadAppLimits() async {
+    final limits = await _db.child.getAllAppLimits();
+    if (mounted) setState(() => _appLimits = limits);
+  }
 
-    if (mounted) {
-      setState(() {
-        _todayUsage = usage;
-        _totalScreenTime = Duration(milliseconds: totalMs);
-        _loading = false;
-      });
-    }
+  Future<void> _loadSettings() async {
+    final allowed = await _db.child.getTotalAllowedScreenTimeMinutes();
+    final points = await _db.child.getTotalPoints();
+    if (mounted) setState(() {
+      _allowedScreenTimeMinutes = allowed;
+      _totalPoints = points;
+    });
   }
 
   String _formatDuration(Duration d) {
@@ -145,10 +141,11 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   }
 
   Widget _buildScreenTimeCard() {
-    const limitHours = 4.0;
-    final usedHours = _totalScreenTime.inMinutes / 60.0;
+    final child = _db.child;
+    final limitHours = _allowedScreenTimeMinutes / 60.0;
+    final usedHours = child.totalUsedScreenTime.inMinutes / 60.0;
     final percent = (usedHours / limitHours).clamp(0.0, 1.0);
-    final screenTimeText = _formatDuration(_totalScreenTime);
+    final screenTimeText = _formatDuration(child.totalUsedScreenTime);
 
     return Container(
       width: double.infinity,
@@ -238,7 +235,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    UserData.points.toString(),
+                    _totalPoints.toString(),
                     style: GoogleFonts.poppins(
                       fontSize: 36,
                       fontWeight: FontWeight.w900,
@@ -265,7 +262,9 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   }
 
   Widget _buildAppsList() {
-    if (_loading) {
+    final child = _db.child;
+
+    if (child.isUsageLoading) {
       return Container(
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
@@ -282,7 +281,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       );
     }
 
-    if (_todayUsage.isEmpty) {
+    if (child.appUsageList.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
@@ -305,7 +304,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       );
     }
 
-    final appsToShow = _todayUsage.take(10).toList();
+    final appsToShow = child.appUsageList.take(10).toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -341,9 +340,19 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       displayName = displayName.split('.').last;
     }
 
-    const allowedHours = 5;
+    final allowedMinutes = _appLimits[app.packageName];
     final usedHours = app.totalTimeInForeground.inMinutes / 60.0;
-    final timeString = '${usedHours.toInt()}hr / ${allowedHours}hr';
+    final usedMinutes = app.totalTimeInForeground.inMinutes;
+    
+    String timeString;
+    bool hasLimit = allowedMinutes != null;
+    
+    if (hasLimit) {
+      final allowedHours = allowedMinutes! / 60;
+      timeString = '${usedHours.toStringAsFixed(1)}hr / ${allowedHours.toStringAsFixed(1)}hr';
+    } else {
+      timeString = _formatDuration(app.totalTimeInForeground);
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -374,6 +383,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
             ),
           ),
           const SizedBox(width: 15),
+          if (hasLimit)
           GestureDetector(
             onTap: () {
               showDialog(

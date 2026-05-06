@@ -3,8 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/screen_time_screen.dart';
-import 'package:myapp/services/child/app_usage_service.dart';
+import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/app_icon_cache.dart';
+import 'package:myapp/services/child/app_usage_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;
@@ -16,19 +17,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  final _appUsageService = AppUsageService();
+  final _db = AppDatabase();
   final _appIconCache = AppIconCache();
-
-  List<AppUsageInfo> _todayUsage = [];
-  Duration _totalScreenTime = Duration.zero;
-  bool _loading = true;
+  int _allowedScreenTimeMinutes = 240;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadUsageData();
+    _refreshUsage();
     _appIconCache.preloadApps();
+    _loadSettings();
   }
 
   @override
@@ -40,38 +39,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _loadUsageData();
+      _refreshUsage();
     }
   }
 
-  Future<void> _loadUsageData() async {
-    final hasPermission = await _appUsageService.hasUsageStatsPermission();
-    if (!hasPermission) {
-      if (mounted) {
-        setState(() {
-          _todayUsage = [];
-          _totalScreenTime = Duration.zero;
-          _loading = false;
-        });
-      }
-      return;
-    }
+  Future<void> _refreshUsage() async {
+    await _db.child.refreshUsageData();
+    if (mounted) setState(() {});
+  }
 
-    final usage = await _appUsageService.getTodayUsage();
-
-    // Compute total screen time from all apps
-    final totalMs = usage.fold<int>(
-      0,
-      (sum, app) => sum + app.totalTimeInForeground.inMilliseconds,
-    );
-
-    if (mounted) {
-      setState(() {
-        _todayUsage = usage;
-        _totalScreenTime = Duration(milliseconds: totalMs);
-        _loading = false;
-      });
-    }
+  Future<void> _loadSettings() async {
+    final allowed = await _db.child.getTotalAllowedScreenTimeMinutes();
+    if (mounted) setState(() => _allowedScreenTimeMinutes = allowed);
   }
 
   /// Formats a Duration into a readable string like "2h 15m" or "45m".
@@ -197,10 +176,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Builds the main screen time reporting card with real data.
   Widget _buildScreenTimeCard(BuildContext context) {
-    final screenTimeText = _formatDuration(_totalScreenTime);
-    // Use 4h as a reasonable daily limit for display
-    const limitHours = 4.0;
-    final usedHours = _totalScreenTime.inMinutes / 60.0;
+    final child = _db.child;
+    final screenTimeText = _formatDuration(child.totalUsedScreenTime);
+    final limitHours = _allowedScreenTimeMinutes / 60.0;
+    final usedHours = child.totalUsedScreenTime.inMinutes / 60.0;
     final percent = (usedHours / limitHours).clamp(0.0, 1.0);
 
     return GestureDetector(
@@ -296,7 +275,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Builds the list of apps used today with real usage data.
   Widget _buildAppsList() {
-    if (_loading) {
+    final child = _db.child;
+
+    if (child.isUsageLoading) {
       return Container(
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
@@ -313,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    if (_todayUsage.isEmpty) {
+    if (child.appUsageList.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
@@ -352,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     // Take up to 10 most-used apps
-    final appsToShow = _todayUsage.take(10).toList();
+    final appsToShow = child.appUsageList.take(10).toList();
     final maxDuration = appsToShow.first.totalTimeInForeground;
 
     return Container(

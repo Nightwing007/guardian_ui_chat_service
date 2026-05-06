@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
-
-enum TaskState { initial, accepted, completed }
+import 'package:myapp/models/child/task_model.dart';
 
 class TaskWidget extends StatefulWidget {
   final String taskName;
