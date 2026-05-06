@@ -67,6 +67,8 @@ flutter:
   assets:
     - assets/images/robohead.png
     - assets/images/screenusage/Default.png
+    - assets/images/screenusage/medium.png
+    - assets/images/screenusage/high.png
     - assets/images/bg-app.png
     - assets/images/task-summary-ill.png
     - assets/icons/

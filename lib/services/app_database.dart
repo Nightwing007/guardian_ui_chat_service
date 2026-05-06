@@ -36,8 +36,9 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
 
     child._db = _db!;
@@ -58,7 +59,7 @@ class AppDatabase {
     ''');
     await db.insert('child_settings', {
       'id': 1,
-      'total_allowed_screen_time_minutes': 240,
+      'total_allowed_screen_time_minutes': 600,
       'total_points': 10,
     });
 
@@ -127,11 +128,17 @@ class AppDatabase {
       await db.insert('app_limits', limit);
     }
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════════
-//  CHILD DATA
-// ═══════════════════════════════════════════════════════════════════════
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.update(
+        'child_settings',
+        {'total_allowed_screen_time_minutes': 600},
+        where: 'id = 1',
+      );
+    }
+  }
+}
 
 class ChildData {
   final _appUsageService = AppUsageService();

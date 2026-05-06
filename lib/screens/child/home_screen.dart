@@ -63,6 +63,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '<1m';
   }
 
+  /// Returns the appropriate screen usage image based on usage percentage.
+  String _getScreenUsageImage(double percent) {
+    if (percent >= 0.8) {
+      return 'assets/images/screenusage/high.png';
+    } else if (percent >= 0.4) {
+      return 'assets/images/screenusage/medium.png';
+    } else {
+      return 'assets/images/screenusage/Default.png';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -86,7 +97,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 15),
           _buildAppsList(),
-          const SizedBox(height: 120), // Extra padding to scroll past the floating navbar
+          const SizedBox(
+            height: 120,
+          ), // Extra padding to scroll past the floating navbar
         ],
       ),
     );
@@ -102,7 +115,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             const CircleAvatar(
               radius: 24,
-              backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=11'), // Placeholder for boy avatar
+              backgroundImage: NetworkImage(
+                'https://i.pravatar.cc/150?img=11',
+              ), // Placeholder for boy avatar
             ),
             const SizedBox(width: 15),
             Column(
@@ -147,7 +162,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.secondaryGradientStart, AppColors.secondaryGradientEnd],
+                colors: [
+                  AppColors.secondaryGradientStart,
+                  AppColors.secondaryGradientEnd,
+                ],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ),
@@ -165,11 +183,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(width: 15),
-        Image.asset(
-          'assets/images/robohead.png',
-          height: 60,
-          width: 60,
-        ),
+        Image.asset('assets/images/robohead.png', height: 60, width: 60),
       ],
     );
   }
@@ -203,75 +217,80 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
+            colors: [
+              AppColors.tertiaryGradientStart,
+              AppColors.tertiaryGradientEnd,
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(24),
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'SCREEN TIME',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  color: Colors.white,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'SCREEN TIME',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              const Icon(Icons.timer_outlined, color: Colors.white, size: 20),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              CircularPercentIndicator(
-                radius: 70.0,
-                lineWidth: 12.0,
-                percent: percent,
-                center: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      screenTimeText,
-                      style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                const Icon(Icons.timer_outlined, color: Colors.white, size: 20),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CircularPercentIndicator(
+                  radius: 70.0,
+                  lineWidth: 12.0,
+                  percent: percent,
+                  center: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        screenTimeText,
+                        style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    Text(
-                      "OF ${limitHours.toInt()}H LIMIT",
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textGrey,
+                      Text(
+                        "OF ${limitHours.toInt()}H LIMIT",
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textGrey,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  progressColor: percent >= 1.0
+                      ? Colors.redAccent
+                      : AppColors.accentBlue,
+                  backgroundColor: const Color(0xFF1E2D4A),
+                  circularStrokeCap: CircularStrokeCap.round,
                 ),
-                progressColor: percent >= 1.0 ? Colors.redAccent : AppColors.accentBlue,
-                backgroundColor: const Color(0xFF1E2D4A),
-                circularStrokeCap: CircularStrokeCap.round,
-              ),
-              Image.asset(
-                'assets/images/screenusage/Default.png',
-                height: 140,
-                fit: BoxFit.contain,
-              ),
-            ],
-          ),
-        ],
+                Image.asset(
+                  _getScreenUsageImage(percent),
+                  height: 140,
+                  fit: BoxFit.contain,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   /// Builds the list of apps used today with real usage data.
   Widget _buildAppsList() {
@@ -282,7 +301,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+            colors: [
+              AppColors.primaryGradientStart,
+              AppColors.primaryGradientEnd,
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -299,7 +321,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+            colors: [
+              AppColors.primaryGradientStart,
+              AppColors.primaryGradientEnd,
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -339,7 +364,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+          colors: [
+            AppColors.primaryGradientStart,
+            AppColors.primaryGradientEnd,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -374,8 +402,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }) {
     final percent = maxDuration.inMilliseconds > 0
         ? (app.totalTimeInForeground.inMilliseconds /
-                maxDuration.inMilliseconds)
-            .clamp(0.0, 1.0)
+                  maxDuration.inMilliseconds)
+              .clamp(0.0, 1.0)
         : 0.0;
 
     final timeText = _formatDuration(app.totalTimeInForeground);
@@ -434,5 +462,4 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
 }

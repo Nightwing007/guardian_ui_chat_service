@@ -219,3 +219,12 @@ await AppDatabase().child.setAppLimit('com.whatsapp', 'WhatsApp', 120);
 await AppDatabase().child.refreshUsageData();
 final usage = AppDatabase().child.appUsageList;
 ```
+
+## Screen Usage Images
+
+The app uses three different images to visually represent screen time usage levels in the HomeScreen:
+- **Default.png**: Shown when usage is below 40% of the allowed limit
+- **medium.png**: Shown when usage is between 40% and 80% of the allowed limit  
+- **high.png**: Shown when usage is at or above 80% of the allowed limit
+
+These images are selected dynamically based on the current usage percentage in the `_getScreenUsageImage()` method.
