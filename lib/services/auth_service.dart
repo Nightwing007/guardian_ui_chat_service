@@ -98,6 +98,60 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> addChildAccount({
+    required String email,
+    required String password,
+    required String firstName,
+    String? lastName,
+    String? dateOfBirth,
+  }) async {
+    print('AuthService.addChildAccount called');
+    print('Attempting to connect to: $baseUrl/api/mobile/children/add/');
+    
+    try {
+      final body = <String, dynamic>{
+        'first_name': firstName,
+      };
+      if (lastName != null) body['last_name'] = lastName;
+      if (dateOfBirth != null) body['date_of_birth'] = dateOfBirth;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/mobile/children/add/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Email': email,
+          'X-Auth-Password': password,
+        },
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+
+      print('addChildAccount status: ${response.statusCode}');
+      print('addChildAccount body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Child account created successfully',
+          'data': data,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to create child account',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('addChildAccount error: $e');
+      print('Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'message': 'Network error ($e)',
+      };
+    }
+  }
+
   Future<Map<String, dynamic>> getChildUsage({
     required String email,
     required String password,

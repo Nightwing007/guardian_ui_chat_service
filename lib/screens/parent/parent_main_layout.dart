@@ -43,9 +43,11 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
     CommandCenterScreen(
       onBack: () {
         setState(() {
-          _currentIndex = 2; // Return to dashboard
+          _currentIndex = 2;
         });
       },
+      email: widget.email,
+      password: widget.password,
     ),
     const Center(child: Text("Profile", style: TextStyle(color: Colors.white, fontSize: 24))),
   ];
