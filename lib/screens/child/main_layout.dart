@@ -9,6 +9,7 @@ import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 import 'package:myapp/services/app_database.dart';
+import 'package:myapp/services/child/usage_submission_service.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -17,14 +18,31 @@ class MainLayout extends StatefulWidget {
   State<MainLayout> createState() => _MainLayoutState();
 }
 
-class _MainLayoutState extends State<MainLayout> {
+class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _dbReady = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initDb();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    UsageSubmissionService().stop();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      UsageSubmissionService().start();
+    } else if (state == AppLifecycleState.paused) {
+      UsageSubmissionService().stop();
+    }
   }
 
   Future<void> _initDb() async {
