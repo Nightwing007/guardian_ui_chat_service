@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.20.10:8000';
+  static const String baseUrl = 'https://seraphguardlabs.com';
 
   Future<Map<String, dynamic>> registerParent({
     required String name,

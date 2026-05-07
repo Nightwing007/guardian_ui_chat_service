@@ -9,7 +9,7 @@ class UsageSubmissionService {
   factory UsageSubmissionService() => _instance;
   UsageSubmissionService._internal();
 
-  static const _baseUrl = 'http://192.168.1.4:8000';
+  static const _baseUrl = 'https://seraphguardlabs.com';
   static const _interval = Duration(seconds: 20);
 
   Timer? _timer;
