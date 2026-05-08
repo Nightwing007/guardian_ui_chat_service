@@ -6,6 +6,7 @@ import 'package:myapp/screens/child/screen_time_screen.dart';
 import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/app_icon_cache.dart';
 import 'package:myapp/services/child/app_usage_service.dart';
+import 'package:myapp/services/child/installed_apps_sync_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;
@@ -20,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _db = AppDatabase();
   final _appIconCache = AppIconCache();
   int _allowedScreenTimeMinutes = 240;
+  bool _isSyncingCloud = false;
 
   @override
   void initState() {
@@ -51,6 +53,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadSettings() async {
     final allowed = await _db.child.getTotalAllowedScreenTimeMinutes();
     if (mounted) setState(() => _allowedScreenTimeMinutes = allowed);
+  }
+
+  Future<void> _syncCloudDb() async {
+    if (_isSyncingCloud) return;
+
+    setState(() => _isSyncingCloud = true);
+    try {
+      await InstalledAppsSyncService().syncInstalledApps();
+      await _refreshUsage();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cloud sync completed')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cloud sync failed: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSyncingCloud = false);
+    }
   }
 
   /// Formats a Duration into a readable string like "2h 15m" or "45m".
@@ -146,6 +173,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
           ],
+        ),
+        Tooltip(
+          message: 'Sync cloud',
+          child: IconButton(
+            onPressed: _isSyncingCloud ? null : _syncCloudDb,
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFF1E2D4A),
+              disabledBackgroundColor: const Color(0xFF1E2D4A),
+              foregroundColor: Colors.white,
+              disabledForegroundColor: AppColors.textGrey,
+            ),
+            icon: _isSyncingCloud
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accentBlue,
+                    ),
+                  )
+                : const Icon(Icons.refresh_rounded),
+          ),
         ),
       ],
     );

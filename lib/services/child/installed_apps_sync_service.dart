@@ -14,9 +14,18 @@ class InstalledAppsSyncService {
   static const _channel = MethodChannel('guardian/monitoring');
 
   Future<void> syncInstalledApps() async {
+    await AppDatabase().initialize();
+
     final session = await SessionService.getChildSession();
-    final deviceToken = session['deviceToken'];
-    final childHash = session['childHash'];
+    final linkedSettings = await AppDatabase().child.getLinkedChildSettings();
+    final deviceToken = _firstNonEmpty([
+      linkedSettings['deviceToken'],
+      session['deviceToken'],
+    ]);
+    final childHash = _firstNonEmpty([
+      linkedSettings['childHash'],
+      session['childHash'],
+    ]);
 
     try {
       final apps = await _getInstalledAppsFromNative();
@@ -54,6 +63,7 @@ class InstalledAppsSyncService {
               'package_name': app['package_name'],
               'name': app['name'],
               'category': app['category'],
+              'child_hash': childHash,
             },
           )
           .toList();
@@ -100,5 +110,15 @@ class InstalledAppsSyncService {
       debugPrint('Failed to get installed apps from native: ${e.message}');
       return [];
     }
+  }
+
+  String? _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      final trimmed = value?.trim();
+      if (trimmed != null && trimmed.isNotEmpty) {
+        return trimmed;
+      }
+    }
+    return null;
   }
 }
