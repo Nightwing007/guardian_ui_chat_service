@@ -304,4 +304,42 @@ class AuthService {
       return {'success': false, 'message': 'Network error ($e)'};
     }
   }
+
+  Future<Map<String, dynamic>> syncInstalledApps({
+    required String deviceToken,
+    required List<Map<String, dynamic>> apps,
+  }) async {
+    print('AuthService.syncInstalledApps called');
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/mobile/children/installed-apps/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Device-Token': deviceToken,
+            },
+            body: jsonEncode({'installed_apps': apps}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('syncInstalledApps status: ${response.statusCode}');
+      print('syncInstalledApps body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to sync installed apps',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('syncInstalledApps error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
 }

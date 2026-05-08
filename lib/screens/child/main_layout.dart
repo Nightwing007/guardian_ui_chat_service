@@ -11,6 +11,7 @@ import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/usage_submission_service.dart';
 import 'package:myapp/services/child/app_blocker_service.dart';
+import 'package:myapp/services/child/installed_apps_sync_service.dart';
 
 class MainLayout extends StatefulWidget {
   final VoidCallback? onReady;
@@ -53,6 +54,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   Future<void> _initDb() async {
     await AppDatabase().initialize();
     await AppBlockerService().startMonitoring();
+    InstalledAppsSyncService().syncInstalledApps();
     if (mounted) {
       setState(() => _dbReady = true);
       widget.onReady?.call();
