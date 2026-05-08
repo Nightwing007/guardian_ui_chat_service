@@ -20,7 +20,10 @@ class InstalledAppsSyncService {
 
     try {
       final credentials = await _loadSyncCredentials();
+      debugPrint('syncInstalledApps - childHash: ${credentials.childHash}, canSyncToCloud: ${credentials.canSyncToCloud}');
+
       final apps = await _getInstalledAppsFromNative();
+      debugPrint('syncInstalledApps - native apps count: ${apps.length}');
 
       if (apps.isEmpty) {
         debugPrint('No installed apps to sync');
@@ -28,10 +31,13 @@ class InstalledAppsSyncService {
       }
 
       if (credentials.childHash != null) {
+        debugPrint('syncInstalledApps - saving ${apps.length} apps to local DB for childHash: ${credentials.childHash}');
         await AppDatabase().child.upsertInstalledApps(
           apps,
           childHash: credentials.childHash!,
         );
+      } else {
+        debugPrint('syncInstalledApps - childHash is null, not saving to local DB');
       }
 
       if (!credentials.canSyncToCloud) {

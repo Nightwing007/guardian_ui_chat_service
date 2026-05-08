@@ -18,7 +18,7 @@ class AppParentDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai_parent.db');
     _db = await openDatabase(
       dbPath,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -40,11 +40,15 @@ class AppParentDatabase {
     ''');
 
     await _createAppUsageTable(db);
+    await _createInstalledAppsTable(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createAppUsageTable(db);
+    }
+    if (oldVersion < 3) {
+      await _createInstalledAppsTable(db);
     }
   }
 
@@ -61,6 +65,23 @@ class AppParentDatabase {
         raw_json TEXT NOT NULL,
         fetched_at TEXT NOT NULL,
         UNIQUE(child_hash, usage_date, package_name)
+      )
+    ''');
+  }
+
+  Future<void> _createInstalledAppsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE installed_apps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remote_id INTEGER,
+        child_hash TEXT NOT NULL,
+        package_name TEXT NOT NULL,
+        app_name TEXT NOT NULL,
+        category TEXT,
+        icon_bytes TEXT,
+        raw_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        UNIQUE(child_hash, package_name)
       )
     ''');
   }
@@ -207,6 +228,122 @@ class AppParentDatabase {
     return {'apps': apps, 'total_foreground_ms': totalMs};
   }
 
+  Future<List<Map<String, dynamic>>> getUsageApps({
+    required String childHash,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return [];
+
+    final rows = await _requireDb().query(
+      'app_usage',
+      columns: ['package_name', 'app_name'],
+      where: 'child_hash = ?',
+      whereArgs: [trimmedChildHash],
+      orderBy: 'app_name ASC',
+    );
+
+    return rows
+        .map(
+          (row) => {
+            'package_name': row['package_name']?.toString() ?? '',
+            'app_name': row['app_name']?.toString() ?? '',
+          },
+        )
+        .where((app) => (app['package_name'] as String).isNotEmpty)
+        .toList();
+  }
+
+  Future<void> upsertInstalledApps({
+    required String childHash,
+    required List<Map<String, dynamic>> apps,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return;
+
+    final db = _requireDb();
+    final batch = db.batch();
+    final fetchedAt = DateTime.now().toIso8601String();
+
+    batch.delete(
+      'installed_apps',
+      where: 'child_hash = ?',
+      whereArgs: [trimmedChildHash],
+    );
+
+    for (final app in apps) {
+      final packageName = app['package_name']?.toString().trim() ?? '';
+      if (packageName.isEmpty) continue;
+
+      batch.insert('installed_apps', {
+        'remote_id': _asNullableInt(app['id']),
+        'child_hash': trimmedChildHash,
+        'package_name': packageName,
+        'app_name':
+            _firstNonEmpty([
+              app['app_name']?.toString(),
+              app['name']?.toString(),
+            ]) ??
+            packageName,
+        'category': app['category']?.toString(),
+        'icon_bytes': app['icon_bytes']?.toString(),
+        'raw_json': jsonEncode(app),
+        'fetched_at': fetchedAt,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<Map<String, dynamic>>> getInstalledApps({
+    required String childHash,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return [];
+
+    final rows = await _requireDb().query(
+      'installed_apps',
+      where: 'child_hash = ?',
+      whereArgs: [trimmedChildHash],
+      orderBy: 'app_name ASC',
+    );
+
+    return rows.map((row) {
+      final rawJson = row['raw_json'] as String?;
+      final localId = _asInt(row['id']);
+      final remoteId = _asNullableInt(row['remote_id']);
+
+      if (rawJson != null && rawJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawJson);
+          if (decoded is Map) {
+            final app = Map<String, dynamic>.from(decoded);
+            app['id'] = remoteId ?? localId;
+            app['app_name'] =
+                _firstNonEmpty([
+                  app['app_name']?.toString(),
+                  app['name']?.toString(),
+                ]) ??
+                row['app_name'];
+            return app;
+          }
+        } catch (_) {
+          // Fall back to normalized columns below.
+        }
+      }
+
+      return {
+        'id': remoteId ?? localId,
+        'package_name': row['package_name'],
+        'app_name': row['app_name'],
+        'category': row['category'],
+        'icon_bytes': row['icon_bytes'],
+      };
+    }).toList();
+  }
+
   Future<void> clearChildUsage({String? childHash}) async {
     await initialize();
     if (childHash == null || childHash.trim().isEmpty) {
@@ -223,6 +360,7 @@ class AppParentDatabase {
 
   Future<void> clearChildren() async {
     await initialize();
+    await _requireDb().delete('installed_apps');
     await _requireDb().delete('app_usage');
     await _requireDb().delete('child');
   }
@@ -250,5 +388,13 @@ class AppParentDatabase {
     if (value is num) return value.toInt();
     if (value is String) return int.tryParse(value) ?? 0;
     return 0;
+  }
+
+  int? _asNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 }

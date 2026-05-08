@@ -50,6 +50,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
 
       final children = _extractChildren(result['data']);
       await AppParentDatabase().upsertChildren(children);
+      await _syncInstalledAppsToLocalDb(children);
       await _syncUsageToLocalDb(children);
     } catch (e) {
       debugPrint('Failed to sync parent children to local DB: $e');
@@ -60,17 +61,36 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
     }
   }
 
-  Future<void> _syncUsageToLocalDb(List<Map<String, dynamic>> children) async {
-    final childHashes = children
-        .map((child) => child['child_hash']?.toString().trim() ?? '')
-        .where((childHash) => childHash.isNotEmpty)
-        .toSet();
+  Future<void> _syncInstalledAppsToLocalDb(
+    List<Map<String, dynamic>> children,
+  ) async {
+    for (final childHash in _childHashesFrom(children)) {
+      final result = await AuthService().getInstalledApps(
+        email: widget.email,
+        password: widget.password,
+        childHash: childHash,
+      );
 
-    if (childHashes.isEmpty && widget.childHash.trim().isNotEmpty) {
-      childHashes.add(widget.childHash.trim());
+      if (result['success'] == true && result['data'] is Map) {
+        final data = result['data'] as Map<String, dynamic>;
+        final installedApps = data['installed_apps'] as List?;
+        if (installedApps == null) return;
+
+        final apps = installedApps
+            .whereType<Map>()
+            .map((app) => Map<String, dynamic>.from(app))
+            .toList();
+
+        await AppParentDatabase().upsertInstalledApps(
+          childHash: childHash,
+          apps: apps,
+        );
+      }
     }
+  }
 
-    for (final childHash in childHashes) {
+  Future<void> _syncUsageToLocalDb(List<Map<String, dynamic>> children) async {
+    for (final childHash in _childHashesFrom(children)) {
       final result = await AuthService().getChildUsage(
         email: widget.email,
         password: widget.password,
@@ -84,6 +104,19 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
         );
       }
     }
+  }
+
+  Set<String> _childHashesFrom(List<Map<String, dynamic>> children) {
+    final childHashes = children
+        .map((child) => child['child_hash']?.toString().trim() ?? '')
+        .where((childHash) => childHash.isNotEmpty)
+        .toSet();
+
+    if (childHashes.isEmpty && widget.childHash.trim().isNotEmpty) {
+      childHashes.add(widget.childHash.trim());
+    }
+
+    return childHashes;
   }
 
   List<Map<String, dynamic>> _extractChildren(dynamic data) {

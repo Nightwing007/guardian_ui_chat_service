@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/set_screen_time_bottom_sheet.dart';
+import 'package:myapp/services/parent/app_parent_database.dart';
 import 'package:myapp/services/auth_service.dart';
 
 class SetAppTimingScreen extends StatefulWidget {
@@ -22,7 +23,7 @@ class SetAppTimingScreen extends StatefulWidget {
 class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _apps = [];
-  Map<int, Map<String, dynamic>> _appLimits = {};
+  final Map<String, int> _appLimits = {};
 
   @override
   void initState() {
@@ -33,80 +34,78 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
-    final installedAppsResult = await AuthService().getInstalledApps(
+    final result = await AuthService().getChildUsage(
       email: widget.email,
       password: widget.password,
       childHash: widget.childHash,
     );
 
-    final appLimitsResult = await AuthService().getAppLimits(
-      email: widget.email,
-      password: widget.password,
+    if (result['success'] == true && result['data'] != null) {
+      await AppParentDatabase().upsertChildUsage(
+        childHash: widget.childHash,
+        usageData: result['data'],
+      );
+    }
+
+    final apps = await AppParentDatabase().getUsageApps(
       childHash: widget.childHash,
     );
 
     if (!mounted) return;
 
-    if (installedAppsResult['success']) {
-      final appsData = installedAppsResult['data'] as List<dynamic>;
-      _apps = appsData.map((app) {
-        return {
-          'id': app['id'] ?? 0,
-          'package_name': app['package_name'] ?? '',
-          'app_name': app['app_name'] ?? '',
-          'icon_bytes': app['icon_bytes'],
-        };
-      }).toList();
-    }
-
-    if (appLimitsResult['success']) {
-      final limitsData = appLimitsResult['data'] as List<dynamic>;
-      _appLimits = {};
-      for (final limit in limitsData) {
-        final installedAppId = limit['installed_app'] as int?;
-        if (installedAppId != null) {
-          _appLimits[installedAppId] = {
-            'id': limit['id'],
-            'limit_minutes': limit['limit_minutes'] ?? 0,
-            'is_active': limit['is_active'] ?? true,
-          };
-        }
-      }
-    }
-
-    setState(() => _isLoading = false);
+    setState(() {
+      _apps = apps.map(_normalizeApp).toList();
+      _isLoading = false;
+    });
   }
 
-  Future<void> _updateAppLimit(int appId, String appName, int? currentLimitId, int limitMinutes) async {
-    if (currentLimitId != null) {
-      await AuthService().updateAppLimit(
-        email: widget.email,
-        password: widget.password,
-        childHash: widget.childHash,
-        limitId: currentLimitId,
-        limitMinutes: limitMinutes,
-        isActive: true,
-      );
-    } else {
-      await AuthService().createAppLimit(
-        email: widget.email,
-        password: widget.password,
-        childHash: widget.childHash,
-        installedAppId: appId,
-        limitMinutes: limitMinutes,
-      );
-    }
-    await _loadData();
+  Map<String, dynamic> _normalizeApp(Map<String, dynamic> app) {
+    final packageName = app['package_name']?.toString() ?? '';
+    return {
+      'id': _asInt(app['id']),
+      'package_name': packageName,
+      'app_name':
+          _firstNonEmpty([
+            app['app_name']?.toString(),
+            app['name']?.toString(),
+          ]) ??
+          packageName,
+      'icon_bytes': app['icon_bytes'],
+    };
   }
 
-  Future<void> _deleteAppLimit(int appId, int limitId) async {
-    await AuthService().deleteAppLimit(
-      email: widget.email,
-      password: widget.password,
-      childHash: widget.childHash,
-      limitId: limitId,
-    );
-    await _loadData();
+  IconData _iconForPackage(String packageName) {
+    const icons = [
+      Icons.chat_bubble_rounded,
+      Icons.photo_camera_rounded,
+      Icons.public_rounded,
+      Icons.play_arrow_rounded,
+      Icons.music_note_rounded,
+      Icons.sports_esports_rounded,
+      Icons.school_rounded,
+      Icons.apps_rounded,
+    ];
+    return icons[packageName.hashCode.abs() % icons.length];
+  }
+
+  Color _colorForPackage(String packageName) {
+    const colors = [
+      Color(0xFF00C853),
+      Color(0xFFE1306C),
+      Color(0xFF4285F4),
+      Color(0xFFFF1744),
+      Color(0xFF7C4DFF),
+      Color(0xFFFFA000),
+      Color(0xFF00B8D4),
+      Color(0xFF64DD17),
+    ];
+    return colors[packageName.hashCode.abs() % colors.length];
+  }
+
+  void _updateAppLimit(String packageName, int limitMinutes) {
+    setState(() {
+      _appLimits[packageName] = limitMinutes;
+    });
   }
 
   @override
@@ -122,7 +121,11 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 22),
+                    child: const Icon(
+                      Icons.arrow_back_ios,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   const Text(
@@ -145,121 +148,144 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
 
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primaryPurple,
+                      ),
+                    )
                   : _apps.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No installed apps found',
-                            style: TextStyle(color: AppColors.textGrey),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          itemCount: _apps.length,
-                          itemBuilder: (context, index) {
-                            final item = _apps[index];
-                            final appId = item['id'] as int;
-                            final limitInfo = _appLimits[appId];
-                            final limitMinutes = limitInfo?['limit_minutes'] as int? ?? 0;
-                            final limitId = limitInfo?['id'] as int?;
-                            final limitText = limitMinutes > 0 
-                                ? '${(limitMinutes / 60).floor()}hr ${limitMinutes % 60}m' 
-                                : 'No limit';
+                  ? Center(
+                      child: Text(
+                        'No app usage data found',
+                        style: TextStyle(color: AppColors.textGrey),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      itemCount: _apps.length,
+                      itemBuilder: (context, index) {
+                        final item = _apps[index];
+                        final packageName = item['package_name'] as String;
+                        final appName = item['app_name'] as String;
+                        final limitMinutes = _appLimits[packageName] ?? 0;
+                        final limitText = limitMinutes > 0
+                            ? '${(limitMinutes / 60).floor()}hr ${limitMinutes % 60}m'
+                            : 'No limit';
 
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF222222),
-                                borderRadius: BorderRadius.circular(24),
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111314),
+                            borderRadius: BorderRadius.circular(34),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: _colorForPackage(packageName),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    _iconForPackage(packageName),
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primaryPurple.withValues(alpha: 0.5),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        (item['app_name'] as String).isNotEmpty 
-                                            ? (item['app_name'] as String)[0].toUpperCase() 
-                                            : '?',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      appName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item['app_name'] as String,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          limitText,
-                                          style: TextStyle(
-                                            color: Colors.grey.shade400,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      limitText,
+                                      style: const TextStyle(
+                                        color: Color(0xFFC9C9C9),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ),
-                                  GestureDetector(
-                                    onTap: () async {
-                                      final hours = limitMinutes > 0 ? limitMinutes ~/ 60 : 0;
-                                      final newDuration = await showModalBottomSheet<Duration>(
+                                  ],
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () async {
+                                  final newDuration =
+                                      await showModalBottomSheet<Duration>(
                                         context: context,
                                         backgroundColor: Colors.transparent,
-                                        builder: (context) => SetScreenTimeBottomSheet(
-                                          title: item['app_name'] as String,
-                                          initialDuration: Duration(minutes: limitMinutes),
-                                        ),
+                                        builder: (context) =>
+                                            SetScreenTimeBottomSheet(
+                                              title: appName,
+                                              initialDuration: Duration(
+                                                minutes: limitMinutes,
+                                              ),
+                                            ),
                                       );
 
-                                      if (newDuration != null) {
-                                        await _updateAppLimit(
-                                          appId,
-                                          item['app_name'] as String,
-                                          limitId,
-                                          newDuration.inMinutes,
-                                        );
-                                      }
-                                    },
-                                    child: Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.cmdIconBg,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(Icons.edit, color: Color(0xFF2B2B2B), size: 18),
-                                    ),
+                                  if (newDuration != null) {
+                                    _updateAppLimit(
+                                      packageName,
+                                      newDuration.inMinutes,
+                                    );
+                                  }
+                                },
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFE4E4E4),
+                                    shape: BoxShape.circle,
                                   ),
-                                ],
+                                  child: const Icon(
+                                    Icons.edit_outlined,
+                                    color: Color(0xFF2B2B2B),
+                                    size: 22,
+                                  ),
+                                ),
                               ),
-                            );
-                          },
-                        ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  String? _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      final trimmed = value?.trim();
+      if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 }
