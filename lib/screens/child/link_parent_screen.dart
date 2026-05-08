@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/child_permissions_screen.dart';
 import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/device_auth_service.dart';
 import 'package:myapp/services/session_service.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -124,8 +125,33 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
 
     if (result['success']) {
       final deviceToken = result['device_token'] as String;
-      await SessionService.saveChildSession(deviceToken: deviceToken);
-      await DeviceAuthService().saveDeviceToken(deviceToken);
+      final childHash = result['child_hash']?.toString();
+      final childName = result['child_name']?.toString();
+      await SessionService.saveChildSession(
+        deviceToken: deviceToken,
+        childHash: childHash,
+        childName: childName,
+      );
+      if (childHash != null && childHash.trim().isNotEmpty) {
+        await DeviceAuthService().saveCredentials(
+          childHash: childHash,
+          deviceToken: deviceToken,
+        );
+      } else {
+        await DeviceAuthService().saveDeviceToken(deviceToken);
+      }
+
+      if (childHash != null &&
+          childHash.trim().isNotEmpty &&
+          childName != null &&
+          childName.trim().isNotEmpty) {
+        await AppDatabase().initialize();
+        await AppDatabase().child.saveLinkedChildSettings(
+          deviceToken: deviceToken,
+          childHash: childHash,
+          childName: childName,
+        );
+      }
 
       if (!mounted) return;
 

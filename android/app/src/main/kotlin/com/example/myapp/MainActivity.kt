@@ -18,7 +18,11 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 class MainActivity : FlutterActivity() {
 
@@ -307,7 +311,7 @@ class MainActivity : FlutterActivity() {
 
     /**
      * Returns a list of maps for each installed app with
-     * packageName, appName, and iconBytes (PNG encoded).
+     * packageName, appName, category, created, and iconBytes (PNG encoded).
      * Includes user apps only, skipping pure system apps.
      */
     private fun getAllInstalledApps(): List<Map<String, Any?>> {
@@ -337,15 +341,52 @@ class MainActivity : FlutterActivity() {
                 null
             }
 
+            val category = getAppCategory(appInfo)
+            val created = getInstallTime(appInfo.packageName)
+
             resultList.add(
                 mapOf(
                     "packageName" to appInfo.packageName,
                     "appName" to appName,
+                    "category" to category,
+                    "created" to created,
                     "iconBytes" to iconBytes
                 )
             )
         }
 
         return resultList
+    }
+
+    private fun getAppCategory(appInfo: ApplicationInfo): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return "not available"
+
+        return when (appInfo.category) {
+            ApplicationInfo.CATEGORY_GAME -> "game"
+            ApplicationInfo.CATEGORY_AUDIO -> "audio"
+            ApplicationInfo.CATEGORY_VIDEO -> "video"
+            ApplicationInfo.CATEGORY_IMAGE -> "image"
+            ApplicationInfo.CATEGORY_SOCIAL -> "social"
+            ApplicationInfo.CATEGORY_NEWS -> "news"
+            ApplicationInfo.CATEGORY_MAPS -> "maps"
+            ApplicationInfo.CATEGORY_PRODUCTIVITY -> "productivity"
+            else -> "not available"
+        }
+    }
+
+    private fun getInstallTime(packageName: String): String {
+        return try {
+            val packageInfo = packageManager.getPackageInfo(packageName, 0)
+            val installTime = packageInfo.firstInstallTime
+            if (installTime <= 0L) {
+                "not available"
+            } else {
+                val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US)
+                formatter.timeZone = TimeZone.getDefault()
+                formatter.format(Date(installTime))
+            }
+        } catch (e: Exception) {
+            "not available"
+        }
     }
 }

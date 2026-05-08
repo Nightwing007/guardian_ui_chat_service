@@ -37,7 +37,7 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 3,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -54,12 +54,18 @@ class AppDatabase {
     await db.execute('''
       CREATE TABLE child_settings (
         id INTEGER PRIMARY KEY,
+        device_token TEXT,
+        child_hash TEXT,
+        child_name TEXT,
         total_allowed_screen_time_minutes INTEGER NOT NULL DEFAULT 240,
         total_points INTEGER NOT NULL DEFAULT 10
       )
     ''');
     await db.insert('child_settings', {
       'id': 1,
+      'device_token': null,
+      'child_hash': null,
+      'child_name': null,
       'total_allowed_screen_time_minutes': 600,
       'total_points': 500,
     });
@@ -77,8 +83,7 @@ class AppDatabase {
 
     // Seed tasks from the bundled JSON asset.
     try {
-      final jsonString =
-          await rootBundle.loadString('assets/data/tasks.json');
+      final jsonString = await rootBundle.loadString('assets/data/tasks.json');
       final List<dynamic> jsonList = json.decode(jsonString);
       for (final item in jsonList) {
         await db.insert('tasks', {
@@ -143,24 +148,54 @@ class AppDatabase {
     // Seed some sample chat messages
     final now = DateTime.now();
     final sampleMessages = [
-      {'text': 'Hey Alex! How was thr your day?', 'time': now.subtract(const Duration(hours: 2)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
-      {'text': 'It was good! I finished my homework.', 'time': now.subtract(const Duration(hours: 1, minutes: 45)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
-      {'text': 'That\'s great! Keep it up!', 'time': now.subtract(const Duration(hours: 1, minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
-      {'text': 'Thanks Mom! Can I have more screen time?', 'time': now.subtract(const Duration(hours: 1)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
-      {'text': 'Complete your tasks first!', 'time': now.subtract(const Duration(minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 0},
+      {
+        'text': 'Hey Alex! How was thr your day?',
+        'time': now.subtract(const Duration(hours: 2)).toIso8601String(),
+        'is_me': 0,
+        'is_seen': 1,
+      },
+      {
+        'text': 'It was good! I finished my homework.',
+        'time': now
+            .subtract(const Duration(hours: 1, minutes: 45))
+            .toIso8601String(),
+        'is_me': 1,
+        'is_seen': 1,
+      },
+      {
+        'text': 'That\'s great! Keep it up!',
+        'time': now
+            .subtract(const Duration(hours: 1, minutes: 30))
+            .toIso8601String(),
+        'is_me': 0,
+        'is_seen': 1,
+      },
+      {
+        'text': 'Thanks Mom! Can I have more screen time?',
+        'time': now.subtract(const Duration(hours: 1)).toIso8601String(),
+        'is_me': 1,
+        'is_seen': 1,
+      },
+      {
+        'text': 'Complete your tasks first!',
+        'time': now.subtract(const Duration(minutes: 30)).toIso8601String(),
+        'is_me': 0,
+        'is_seen': 0,
+      },
     ];
     for (final msg in sampleMessages) {
       await db.insert('chat_messages', msg);
     }
+
+    await _createInstalledAppsTable(db);
+    await _createLocalAppUsageTable(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.update(
-        'child_settings',
-        {'total_allowed_screen_time_minutes': 600},
-        where: 'id = 1',
-      );
+      await db.update('child_settings', {
+        'total_allowed_screen_time_minutes': 600,
+      }, where: 'id = 1');
     }
     if (oldVersion < 3) {
       // Create chat_messages table
@@ -173,20 +208,115 @@ class AppDatabase {
           is_seen INTEGER NOT NULL DEFAULT 0
         )
       ''');
-      
+
       // Seed sample messages
       final now = DateTime.now();
       final sampleMessages = [
-        {'text': 'Hey Alex! How was your day?', 'time': now.subtract(const Duration(hours: 2)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
-        {'text': 'It was good! I finished my homework.', 'time': now.subtract(const Duration(hours: 1, minutes: 45)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
-        {'text': 'That\'s great! Keep it up!', 'time': now.subtract(const Duration(hours: 1, minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 1},
-        {'text': 'Thanks Mom! Can I have more screen time?', 'time': now.subtract(const Duration(hours: 1)).toIso8601String(), 'is_me': 1, 'is_seen': 1},
-        {'text': 'Complete your tasks first!', 'time': now.subtract(const Duration(minutes: 30)).toIso8601String(), 'is_me': 0, 'is_seen': 0},
+        {
+          'text': 'Hey Alex! How was your day?',
+          'time': now.subtract(const Duration(hours: 2)).toIso8601String(),
+          'is_me': 0,
+          'is_seen': 1,
+        },
+        {
+          'text': 'It was good! I finished my homework.',
+          'time': now
+              .subtract(const Duration(hours: 1, minutes: 45))
+              .toIso8601String(),
+          'is_me': 1,
+          'is_seen': 1,
+        },
+        {
+          'text': 'That\'s great! Keep it up!',
+          'time': now
+              .subtract(const Duration(hours: 1, minutes: 30))
+              .toIso8601String(),
+          'is_me': 0,
+          'is_seen': 1,
+        },
+        {
+          'text': 'Thanks Mom! Can I have more screen time?',
+          'time': now.subtract(const Duration(hours: 1)).toIso8601String(),
+          'is_me': 1,
+          'is_seen': 1,
+        },
+        {
+          'text': 'Complete your tasks first!',
+          'time': now.subtract(const Duration(minutes: 30)).toIso8601String(),
+          'is_me': 0,
+          'is_seen': 0,
+        },
       ];
       for (final msg in sampleMessages) {
         await db.insert('chat_messages', msg);
       }
     }
+    if (oldVersion < 4) {
+      await _createInstalledAppsTable(db);
+    }
+    if (oldVersion < 5) {
+      await _createLocalAppUsageTable(db);
+    }
+    if (oldVersion < 6) {
+      await _addColumnIfMissing(db, 'child_settings', 'device_token', 'TEXT');
+      await _addColumnIfMissing(db, 'child_settings', 'child_hash', 'TEXT');
+      await _addColumnIfMissing(db, 'child_settings', 'child_name', 'TEXT');
+    }
+    if (oldVersion < 7) {
+      await _addColumnIfMissing(db, 'installed_apps', 'child_hash', 'TEXT');
+      await _addColumnIfMissing(db, 'local_app_usage', 'child_hash', 'TEXT');
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS installed_apps_package_child_hash_idx '
+        'ON installed_apps(package_name, child_hash)',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS local_app_usage_package_child_hash_idx '
+        'ON local_app_usage(package_name, child_hash)',
+      );
+    }
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = columns.any((row) => row['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+    }
+  }
+
+  Future<void> _createInstalledAppsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE installed_apps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_name TEXT NOT NULL,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        created TEXT NOT NULL,
+        child_hash TEXT NOT NULL,
+        UNIQUE(package_name, child_hash)
+      )
+    ''');
+  }
+
+  Future<void> _createLocalAppUsageTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE local_app_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_name TEXT NOT NULL,
+        app_name TEXT NOT NULL,
+        foreground_ms INTEGER NOT NULL,
+        opens INTEGER NOT NULL DEFAULT 0,
+        recorded_at TEXT NOT NULL,
+        child_hash TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(package_name, child_hash)
+      )
+    ''');
   }
 }
 
@@ -211,8 +341,7 @@ class ChildData {
   Future<void> refreshUsageData() async {
     _usageLoading = true;
 
-    final hasPermission =
-        await _appUsageService.hasUsageStatsPermission();
+    final hasPermission = await _appUsageService.hasUsageStatsPermission();
     if (!hasPermission) {
       appUsageList = [];
       totalUsedScreenTime = Duration.zero;
@@ -241,11 +370,41 @@ class ChildData {
   }
 
   Future<void> setTotalAllowedScreenTimeMinutes(int minutes) async {
-    await _db.update(
-      'child_settings',
-      {'total_allowed_screen_time_minutes': minutes},
-      where: 'id = 1',
-    );
+    await _db.update('child_settings', {
+      'total_allowed_screen_time_minutes': minutes,
+    }, where: 'id = 1');
+  }
+
+  Future<void> saveLinkedChildSettings({
+    required String deviceToken,
+    required String childHash,
+    required String childName,
+  }) async {
+    final values = {
+      'device_token': deviceToken,
+      'child_hash': childHash,
+      'child_name': childName,
+    };
+
+    final count = await _db.update('child_settings', values, where: 'id = 1');
+
+    if (count == 0) {
+      await _db.insert('child_settings', {'id': 1, ...values});
+    }
+  }
+
+  Future<Map<String, String?>> getLinkedChildSettings() async {
+    final rows = await _db.query('child_settings', where: 'id = 1');
+    if (rows.isEmpty) {
+      return {'deviceToken': null, 'childHash': null, 'childName': null};
+    }
+
+    final row = rows.first;
+    return {
+      'deviceToken': row['device_token'] as String?,
+      'childHash': row['child_hash'] as String?,
+      'childName': row['child_name'] as String?,
+    };
   }
 
   /// How much time the child still has left today.
@@ -265,11 +424,9 @@ class ChildData {
   }
 
   Future<void> setTotalPoints(int points) async {
-    await _db.update(
-      'child_settings',
-      {'total_points': points},
-      where: 'id = 1',
-    );
+    await _db.update('child_settings', {
+      'total_points': points,
+    }, where: 'id = 1');
   }
 
   Future<void> addPoints(int amount) async {
@@ -281,13 +438,17 @@ class ChildData {
 
   Future<List<TaskModel>> getTasks() async {
     final rows = await _db.query('tasks', orderBy: 'id ASC');
-    return rows.map((row) => TaskModel(
-      id: row['id'] as int,
-      name: row['name'] as String,
-      category: row['category'] as String,
-      timerTime: row['timer_time'] as String,
-      state: _parseTaskState(row['state'] as String),
-    )).toList();
+    return rows
+        .map(
+          (row) => TaskModel(
+            id: row['id'] as int,
+            name: row['name'] as String,
+            category: row['category'] as String,
+            timerTime: row['timer_time'] as String,
+            state: _parseTaskState(row['state'] as String),
+          ),
+        )
+        .toList();
   }
 
   Future<void> updateTaskState(int taskId, TaskState state) async {
@@ -337,16 +498,15 @@ class ChildData {
   }
 
   Future<void> setAppLimit(
-      String packageName, String appName, int allowedMinutes) async {
-    await _db.insert(
-      'app_limits',
-      {
-        'package_name': packageName,
-        'app_name': appName,
-        'allowed_minutes': allowedMinutes,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    String packageName,
+    String appName,
+    int allowedMinutes,
+  ) async {
+    await _db.insert('app_limits', {
+      'package_name': packageName,
+      'app_name': appName,
+      'allowed_minutes': allowedMinutes,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> removeAppLimit(String packageName) async {
@@ -354,6 +514,90 @@ class ChildData {
       'app_limits',
       where: 'package_name = ?',
       whereArgs: [packageName],
+    );
+  }
+
+  // ── Installed Apps (SQLite) ───────────────────────────────────────
+
+  Future<void> upsertInstalledApps(
+    List<Map<String, dynamic>> apps, {
+    required String childHash,
+  }) async {
+    if (childHash.trim().isEmpty) return;
+
+    final batch = _db.batch();
+    for (final app in apps) {
+      final packageName = (app['package_name'] as String?)?.trim() ?? '';
+      final name =
+          ((app['name'] ?? app['app_name']) as String?)?.trim() ?? packageName;
+
+      if (packageName.isEmpty || name.isEmpty) continue;
+
+      batch.insert('installed_apps', {
+        'package_name': packageName,
+        'name': name,
+        'category': (app['category'] as String?)?.trim().isNotEmpty == true
+            ? (app['category'] as String).trim()
+            : 'not available',
+        'created': (app['created'] as String?)?.trim().isNotEmpty == true
+            ? (app['created'] as String).trim()
+            : 'not available',
+        'child_hash': childHash.trim(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<Map<String, dynamic>>> getInstalledApps({String? childHash}) {
+    return _db.query(
+      'installed_apps',
+      where: childHash == null ? null : 'child_hash = ?',
+      whereArgs: childHash == null ? null : [childHash],
+      orderBy: 'name ASC',
+    );
+  }
+
+  // ── Local Usage Snapshots (SQLite) ────────────────────────────────
+
+  Future<void> upsertLocalUsageSnapshot(
+    List<Map<String, dynamic>> apps, {
+    required String childHash,
+    bool synced = false,
+  }) async {
+    if (childHash.trim().isEmpty) return;
+
+    final batch = _db.batch();
+    final recordedAt = DateTime.now().toIso8601String();
+
+    for (final app in apps) {
+      final packageName = (app['package_name'] as String?)?.trim() ?? '';
+      final appName =
+          ((app['app_name'] ?? app['name']) as String?)?.trim() ?? packageName;
+      final foregroundMs = app['foreground_ms'] as int? ?? 0;
+      final opens = app['opens'] as int? ?? 0;
+
+      if (packageName.isEmpty || appName.isEmpty) continue;
+
+      batch.insert('local_app_usage', {
+        'package_name': packageName,
+        'app_name': appName,
+        'foreground_ms': foregroundMs,
+        'opens': opens,
+        'recorded_at': recordedAt,
+        'child_hash': childHash.trim(),
+        'synced': synced ? 1 : 0,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  Future<void> markLocalUsageSynced({required String childHash}) async {
+    await _db.update(
+      'local_app_usage',
+      {'synced': 1, 'recorded_at': DateTime.now().toIso8601String()},
+      where: 'child_hash = ?',
+      whereArgs: [childHash],
     );
   }
 

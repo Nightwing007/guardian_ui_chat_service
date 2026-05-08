@@ -139,10 +139,7 @@ class AuthService {
     } catch (e, stackTrace) {
       print('addChildAccount error: $e');
       print('Stack trace: $stackTrace');
-      return {
-        'success': false,
-        'message': 'Network error ($e)',
-      };
+      return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
@@ -233,10 +230,7 @@ class AuthService {
       final response = await http
           .post(
             Uri.parse('$baseUrl/api/children/$childHash/pairing-token'),
-            headers: {
-              'X-Email': email,
-              'X-Password': password,
-            },
+            headers: {'X-Email': email, 'X-Password': password},
           )
           .timeout(const Duration(seconds: 10));
 
@@ -274,10 +268,7 @@ class AuthService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'pairing_token': pairingToken,
-              'device_info': {
-                'model': deviceModel,
-                'platform': platform,
-              },
+              'device_info': {'model': deviceModel, 'platform': platform},
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -291,6 +282,8 @@ class AuthService {
         return {
           'success': true,
           'device_token': data['device_token'],
+          'child_hash': data['child_hash'] ?? data['child']?['child_hash'],
+          'child_name': data['child_name'] ?? data['child']?['name'],
         };
       } else {
         return {
@@ -306,6 +299,7 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> syncInstalledApps({
+    required String childHash,
     required String deviceToken,
     required List<Map<String, dynamic>> apps,
   }) async {
@@ -314,12 +308,12 @@ class AuthService {
     try {
       final response = await http
           .post(
-            Uri.parse('$baseUrl/api/mobile/children/installed-apps/'),
+            Uri.parse('$baseUrl/api/children/$childHash/installed-apps/sync/'),
             headers: {
               'Content-Type': 'application/json',
               'X-Device-Token': deviceToken,
             },
-            body: jsonEncode({'installed_apps': apps}),
+            body: jsonEncode({'apps': apps}),
           )
           .timeout(const Duration(seconds: 30));
 
@@ -353,7 +347,9 @@ class AuthService {
     try {
       final response = await http
           .get(
-            Uri.parse('$baseUrl/api/mobile/children/$childHash/installed-apps/'),
+            Uri.parse(
+              '$baseUrl/api/mobile/children/$childHash/installed-apps/',
+            ),
             headers: {
               'Content-Type': 'application/json',
               'X-Email': email,
@@ -479,7 +475,9 @@ class AuthService {
     try {
       final response = await http
           .patch(
-            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/'),
+            Uri.parse(
+              '$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/',
+            ),
             headers: {
               'Content-Type': 'application/json',
               'X-Email': email,
@@ -523,7 +521,9 @@ class AuthService {
     try {
       final response = await http
           .delete(
-            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/'),
+            Uri.parse(
+              '$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/',
+            ),
             headers: {
               'Content-Type': 'application/json',
               'X-Email': email,

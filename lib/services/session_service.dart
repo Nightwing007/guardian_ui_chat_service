@@ -8,6 +8,8 @@ class SessionService {
 
   static const String _childDeviceTokenKey = 'child_device_token';
   static const String _isChildLinkedKey = 'is_child_linked';
+  static const String _childSessionHashKey = 'child_session_hash';
+  static const String _childNameKey = 'child_name';
   static const String _userRoleKey = 'user_role';
   static const String childRole = 'child';
   static const String parentRole = 'parent';
@@ -46,9 +48,19 @@ class SessionService {
     }
   }
 
-  static Future<void> saveChildSession({required String deviceToken}) async {
+  static Future<void> saveChildSession({
+    required String deviceToken,
+    String? childHash,
+    String? childName,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_childDeviceTokenKey, deviceToken);
+    if (childHash != null && childHash.trim().isNotEmpty) {
+      await prefs.setString(_childSessionHashKey, childHash.trim());
+    }
+    if (childName != null && childName.trim().isNotEmpty) {
+      await prefs.setString(_childNameKey, childName.trim());
+    }
     await prefs.setBool(_isChildLinkedKey, true);
     await prefs.setString(_userRoleKey, childRole);
   }
@@ -57,6 +69,8 @@ class SessionService {
     final prefs = await SharedPreferences.getInstance();
     return {
       'deviceToken': prefs.getString(_childDeviceTokenKey),
+      'childHash': prefs.getString(_childSessionHashKey),
+      'childName': prefs.getString(_childNameKey),
       'isLinked': prefs.getBool(_isChildLinkedKey)?.toString() ?? 'false',
       'role': prefs.getString(_userRoleKey),
     };
@@ -70,6 +84,9 @@ class SessionService {
   static Future<void> clearChildSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_childDeviceTokenKey);
+    await prefs.remove('child_id');
+    await prefs.remove(_childSessionHashKey);
+    await prefs.remove(_childNameKey);
     await prefs.remove(_isChildLinkedKey);
     if (prefs.getString(_userRoleKey) == childRole) {
       await prefs.remove(_userRoleKey);
