@@ -557,6 +557,21 @@ class ChildData {
     );
   }
 
+  Future<void> deleteInstalledApp({
+    required String packageName,
+    required String childHash,
+  }) async {
+    final trimmedPackage = packageName.trim();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedPackage.isEmpty || trimmedChildHash.isEmpty) return;
+
+    await _db.delete(
+      'installed_apps',
+      where: 'package_name = ? AND child_hash = ?',
+      whereArgs: [trimmedPackage, trimmedChildHash],
+    );
+  }
+
   // ── Local Usage Snapshots (SQLite) ────────────────────────────────
 
   Future<void> upsertLocalUsageSnapshot(

@@ -38,6 +38,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     UsageSubmissionService().stop();
     AppBlockerService().stopMonitoring();
+    InstalledAppsSyncService().stopPackageChangeWatcher();
     super.dispose();
   }
 
@@ -55,6 +56,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     await AppDatabase().initialize();
     await AppBlockerService().startMonitoring();
     InstalledAppsSyncService().syncInstalledApps();
+    InstalledAppsSyncService().startPackageChangeWatcher();
     if (mounted) {
       setState(() => _dbReady = true);
       widget.onReady?.call();
@@ -66,9 +68,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     if (!_dbReady) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
     }
 
@@ -83,7 +83,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
         backgroundColor: Colors.transparent,
         extendBody: true,
         body: SafeArea(
-          bottom: false, 
+          bottom: false,
           child: IndexedStack(
             index: _currentIndex,
             children: [
@@ -101,36 +101,36 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
             ],
           ),
         ),
-        floatingActionButton: _currentIndex == 0 
-          ? Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
-              child: FloatingActionButton(
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (context) => SosBottomSheet(
-                      onChatPressed: () {
-                        setState(() {
-                          _currentIndex = 2; // Jump to Chat tab
-                        });
-                      },
+        floatingActionButton: _currentIndex == 0
+            ? Padding(
+                padding: const EdgeInsets.only(bottom: 20.0),
+                child: FloatingActionButton(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => SosBottomSheet(
+                        onChatPressed: () {
+                          setState(() {
+                            _currentIndex = 2; // Jump to Chat tab
+                          });
+                        },
+                      ),
+                    );
+                  },
+                  backgroundColor: AppColors.sosRed,
+                  shape: const CircleBorder(),
+                  child: Text(
+                    'SOS',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                  );
-                },
-                backgroundColor: AppColors.sosRed,
-                shape: const CircleBorder(),
-                child: Text(
-                  'SOS',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
                   ),
                 ),
-              ),
-            )
-          : null,
+              )
+            : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         bottomNavigationBar: CustomBottomNavBar(
           currentIndex: _currentIndex,

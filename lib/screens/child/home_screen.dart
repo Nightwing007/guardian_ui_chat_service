@@ -60,13 +60,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     setState(() => _isSyncingCloud = true);
     try {
-      await InstalledAppsSyncService().syncInstalledApps();
+      final synced = await InstalledAppsSyncService()
+          .syncLocalInstalledAppsToCloud();
       await _refreshUsage();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Cloud sync completed')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            synced
+                ? 'Cloud sync completed'
+                : 'Nothing synced. Check pairing and local app data.',
+          ),
+          backgroundColor: synced ? null : Colors.orangeAccent,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

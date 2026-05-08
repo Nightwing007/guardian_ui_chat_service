@@ -3,8 +3,10 @@ package com.example.myapp
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -33,12 +35,15 @@ class MainActivity : FlutterActivity() {
     private var vpnRunning = false
     private var locationTrackingRunning = false
     private val blockedApps = mutableSetOf<String>()
+    private var monitoringChannel: MethodChannel? = null
+    private var packageChangeReceiver: BroadcastReceiver? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        monitoringChannel = channel
+        channel.setMethodCallHandler { call, result ->
                 when (call.method) {
 
                     // ── Usage Stats ────────────────────────────────────
@@ -111,6 +116,22 @@ class MainActivity : FlutterActivity() {
                     "getAllInstalledApps" -> {
                         result.success(getAllInstalledApps())
                     }
+                    "getInstalledApp" -> {
+                        val packageName = call.argument<String>("packageName")
+                        if (packageName != null) {
+                            result.success(getInstalledApp(packageName))
+                        } else {
+                            result.error("INVALID_ARGUMENT", "packageName is required", null)
+                        }
+                    }
+                    "startInstalledAppsWatcher" -> {
+                        startInstalledAppsWatcher()
+                        result.success(true)
+                    }
+                    "stopInstalledAppsWatcher" -> {
+                        stopInstalledAppsWatcher()
+                        result.success(true)
+                    }
 
                     // ── App Blocking ─────────────────────────────────────
                     "blockApp" -> {
@@ -155,6 +176,64 @@ class MainActivity : FlutterActivity() {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────
+
+    override fun onDestroy() {
+        stopInstalledAppsWatcher()
+        super.onDestroy()
+    }
+
+    private fun startInstalledAppsWatcher() {
+        if (packageChangeReceiver != null) return
+
+        packageChangeReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val action = intent?.action ?: return
+                val packageName = intent.data?.schemeSpecificPart ?: return
+                val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+
+                val changeType = when (action) {
+                    Intent.ACTION_PACKAGE_REMOVED -> if (replacing) "updated" else "removed"
+                    Intent.ACTION_PACKAGE_ADDED -> if (replacing) "updated" else "added"
+                    Intent.ACTION_PACKAGE_CHANGED -> "changed"
+                    else -> "changed"
+                }
+
+                monitoringChannel?.invokeMethod(
+                    "installedAppsChanged",
+                    mapOf(
+                        "packageName" to packageName,
+                        "changeType" to changeType
+                    )
+                )
+            }
+        }
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addDataScheme("package")
+        }
+
+        val receiver = packageChangeReceiver ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(receiver, filter)
+        }
+    }
+
+    private fun stopInstalledAppsWatcher() {
+        val receiver = packageChangeReceiver ?: return
+        try {
+            unregisterReceiver(receiver)
+        } catch (_: Exception) {
+            // Receiver was already unregistered.
+        } finally {
+            packageChangeReceiver = null
+        }
+    }
 
     /**
      * Checks if this app has been granted usage-stats access via
@@ -320,42 +399,50 @@ class MainActivity : FlutterActivity() {
         val resultList = mutableListOf<Map<String, Any?>>()
 
         for (appInfo in installedApps) {
-            // Skip pure system apps, but keep user-installed and updated system apps
-            val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-            val isUpdatedSystemApp = (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-            if (isSystemApp && !isUpdatedSystemApp) continue
-
-            val appName = try {
-                pm.getApplicationLabel(appInfo).toString()
-            } catch (e: Exception) {
-                appInfo.packageName
-            }
-
-            val iconBytes = try {
-                val icon = pm.getApplicationIcon(appInfo)
-                val bitmap = icon.toBitmap(width = 96, height = 96)
-                val stream = ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
-                stream.toByteArray()
-            } catch (e: Exception) {
-                null
-            }
-
-            val category = getAppCategory(appInfo)
-            val created = getInstallTime(appInfo.packageName)
-
-            resultList.add(
-                mapOf(
-                    "packageName" to appInfo.packageName,
-                    "appName" to appName,
-                    "category" to category,
-                    "created" to created,
-                    "iconBytes" to iconBytes
-                )
-            )
+            getInstalledAppMap(appInfo)?.let { resultList.add(it) }
         }
 
         return resultList
+    }
+
+    private fun getInstalledApp(packageName: String): Map<String, Any?>? {
+        return try {
+            val appInfo = packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+            getInstalledAppMap(appInfo)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun getInstalledAppMap(appInfo: ApplicationInfo): Map<String, Any?>? {
+        val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        val isUpdatedSystemApp = (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+        if (isSystemApp && !isUpdatedSystemApp) return null
+
+        val pm = packageManager
+        val appName = try {
+            pm.getApplicationLabel(appInfo).toString()
+        } catch (e: Exception) {
+            appInfo.packageName
+        }
+
+        val iconBytes = try {
+            val icon = pm.getApplicationIcon(appInfo)
+            val bitmap = icon.toBitmap(width = 96, height = 96)
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+            stream.toByteArray()
+        } catch (e: Exception) {
+            null
+        }
+
+        return mapOf(
+            "packageName" to appInfo.packageName,
+            "appName" to appName,
+            "category" to getAppCategory(appInfo),
+            "created" to getInstallTime(appInfo.packageName),
+            "iconBytes" to iconBytes
+        )
     }
 
     private fun getAppCategory(appInfo: ApplicationInfo): String {
