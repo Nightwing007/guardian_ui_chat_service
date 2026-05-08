@@ -25,6 +25,7 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
   List<Map<String, dynamic>> _apps = [];
   List<Map<String, dynamic>> _filteredApps = [];
   final Map<String, int> _appLimits = {};
+  final Map<String, int> _cloudLimitIds = {};
   String _searchQuery = '';
 
   @override
@@ -58,6 +59,33 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
       }
     }
 
+    final limitsResult = await AuthService().getAppLimits(
+      email: widget.email,
+      password: widget.password,
+      childHash: widget.childHash,
+    );
+
+    if (limitsResult['success'] == true && limitsResult['data'] is Map) {
+      final data = limitsResult['data'] as Map<String, dynamic>;
+      final cloudLimits = data['limits'] as List?;
+      if (cloudLimits != null) {
+        for (final limit in cloudLimits.whereType<Map>()) {
+          final packageName = limit['package_name'] as String?;
+          if (packageName == null) continue;
+          final limitId = limit['id'] as int?;
+          final installedAppId = limit['installed_app_id'] as int?;
+          final limitMinutes = limit['limit_minutes'] as int? ?? 0;
+          await AppParentDatabase().upsertAppLimit(
+            childHash: widget.childHash,
+            packageName: packageName,
+            remoteId: installedAppId,
+            cloudLimitId: limitId,
+            limitMinutes: limitMinutes,
+          );
+        }
+      }
+    }
+
     final apps = await AppParentDatabase().getInstalledApps(
       childHash: widget.childHash,
     );
@@ -65,13 +93,19 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
     final limits = await AppParentDatabase().getAppLimits(
       childHash: widget.childHash,
     );
+    print('Loaded limits from DB: $limits');
 
     final limitsMap = <String, int>{};
+    final cloudLimitIds = <String, int>{};
     for (final limit in limits) {
       final packageName = limit['package_name'] as String?;
       final limitMinutes = limit['limit_minutes'] as int? ?? 0;
+      final cloudLimitId = limit['cloud_limit_id'] as int?;
       if (packageName != null && packageName.isNotEmpty) {
         limitsMap[packageName] = limitMinutes;
+        if (cloudLimitId != null) {
+          cloudLimitIds[packageName] = cloudLimitId;
+        }
       }
     }
 
@@ -82,31 +116,66 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
       _apps = normalizedApps;
       _appLimits.clear();
       _appLimits.addAll(limitsMap);
+      _cloudLimitIds.clear();
+      _cloudLimitIds.addAll(cloudLimitIds);
       _filteredApps = _filterApps(normalizedApps, _searchQuery);
       _isLoading = false;
     });
   }
 
-  Future<void> _saveAppLimit(String packageName, int limitMinutes, int? remoteId) async {
-    await AppParentDatabase().upsertAppLimit(
-      childHash: widget.childHash,
-      packageName: packageName,
-      remoteId: remoteId,
-      limitMinutes: limitMinutes,
-    );
+Future<void> _saveAppLimit(String packageName, int limitMinutes, int? remoteId) async {
+    final existingCloudLimitId = _cloudLimitIds[packageName];
+    int? cloudLimitId;
 
-    if (remoteId != null) {
-      await AuthService().setAppLimit(
+    if (existingCloudLimitId != null) {
+      final result = await AuthService().updateAppLimit(
+        email: widget.email,
+        password: widget.password,
+        childHash: widget.childHash,
+        limitId: existingCloudLimitId,
+        limitMinutes: limitMinutes,
+      );
+
+      print('updateAppLimit result: $result');
+      if (result['success'] == true) {
+        cloudLimitId = existingCloudLimitId;
+      }
+    } else if (remoteId != null) {
+      final result = await AuthService().setAppLimit(
         email: widget.email,
         password: widget.password,
         childHash: widget.childHash,
         installedAppId: remoteId,
         limitMinutes: limitMinutes,
       );
+
+      print('setAppLimit result: $result');
+      if (result['success'] == true && result['data'] is Map) {
+        final data = result['data'] as Map<String, dynamic>;
+        print('setAppLimit data: $data');
+        final limit = data['limit'] as Map<String, dynamic>?;
+        if (limit != null) {
+          cloudLimitId = limit['id'] as int?;
+          print('Got cloudLimitId: $cloudLimitId');
+        }
+      }
     }
+
+    print('Saving to local DB: package=$packageName, limitMinutes=$limitMinutes, cloudLimitId=$cloudLimitId');
+    await AppParentDatabase().upsertAppLimit(
+      childHash: widget.childHash,
+      packageName: packageName,
+      remoteId: remoteId,
+      cloudLimitId: cloudLimitId,
+      limitMinutes: limitMinutes,
+    );
+    print('Local DB save complete');
 
     setState(() {
       _appLimits[packageName] = limitMinutes;
+      if (cloudLimitId != null) {
+        _cloudLimitIds[packageName] = cloudLimitId;
+      }
     });
   }
 
@@ -249,6 +318,8 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
                         final appName = item['app_name'] as String;
                         final remoteId = item['id'] as int?;
                         final limitMinutes = _appLimits[packageName] ?? 0;
+                        final cloudLimitId = _cloudLimitIds[packageName];
+                        final hasLimit = limitMinutes > 0;
                         final limitText = limitMinutes > 0
                             ? '${(limitMinutes / 60).floor()}hr ${limitMinutes % 60}m'
                             : 'No limit';
@@ -319,6 +390,12 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
                                               initialDuration: Duration(
                                                 minutes: limitMinutes,
                                               ),
+                                              childHash: widget.childHash,
+                                              email: widget.email,
+                                              password: widget.password,
+                                              packageName: packageName,
+                                              limitId: cloudLimitId,
+                                              hasLimit: hasLimit,
                                             ),
                                       );
 
@@ -328,6 +405,8 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
                                       newDuration.inMinutes,
                                       remoteId,
                                     );
+                                  } else if (newDuration == null && hasLimit) {
+                                    _loadData();
                                   }
                                 },
                                 child: Container(

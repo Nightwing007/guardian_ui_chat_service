@@ -139,28 +139,35 @@ class AuthService {
     } catch (e, stackTrace) {
       print('addChildAccount error: $e');
       print('Stack trace: $stackTrace');
-      return {'success': false, 'message': 'Network error ($e)'};
+return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
-  Future<Map<String, dynamic>> getChildUsage({
+  Future<Map<String, dynamic>> updateAppLimit({
     required String email,
     required String password,
     required String childHash,
-    String? date,
+    required int limitId,
+    required int limitMinutes,
   }) async {
-    print('AuthService.getChildUsage called for $childHash');
-    final uri = Uri.parse(
-      '$baseUrl/api/mobile/children/$childHash/usage',
-    ).replace(queryParameters: date != null ? {'date': date} : null);
-
+    print('AuthService.updateAppLimit called for $childHash limit $limitId');
     try {
       final response = await http
-          .get(uri, headers: {'X-Email': email, 'X-Password': password})
+          .patch(
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Email': email,
+              'X-Password': password,
+            },
+            body: jsonEncode({
+              'limit_minutes': limitMinutes,
+            }),
+          )
           .timeout(const Duration(seconds: 10));
 
-      debugPrint('getChildUsage status: ${response.statusCode}');
-      debugPrint('getChildUsage body: ${response.body}');
+      print('updateAppLimit status: ${response.statusCode}');
+      print('updateAppLimit body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
@@ -169,55 +176,49 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'message': data['error'] ?? 'Failed to fetch usage',
+          'message': data['error'] ?? 'Failed to update app limit',
         };
       }
     } catch (e, stackTrace) {
-      print('getChildUsage error: $e');
+      print('updateAppLimit error: $e');
       print('Stack trace: $stackTrace');
       return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
-  Future<Map<String, dynamic>> setAppLimit({
+  Future<Map<String, dynamic>> getAppLimits({
     required String email,
     required String password,
     required String childHash,
-    required int installedAppId,
-    required int limitMinutes,
   }) async {
-    print('AuthService.setAppLimit called for $childHash');
+    print('AuthService.getAppLimits called for $childHash');
     try {
       final response = await http
-          .post(
+          .get(
             Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/'),
             headers: {
               'Content-Type': 'application/json',
               'X-Email': email,
               'X-Password': password,
             },
-            body: jsonEncode({
-              'installed_app_id': installedAppId,
-              'limit_minutes': limitMinutes,
-            }),
           )
           .timeout(const Duration(seconds: 10));
 
-      print('setAppLimit status: ${response.statusCode}');
-      print('setAppLimit body: ${response.body}');
+      print('getAppLimits status: ${response.statusCode}');
+      print('getAppLimits body: ${response.body}');
 
       final data = jsonDecode(response.body);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 200) {
         return {'success': true, 'data': data};
       } else {
         return {
           'success': false,
-          'message': data['error'] ?? 'Failed to set app limit',
+          'message': data['error'] ?? 'Failed to fetch app limits',
         };
       }
     } catch (e, stackTrace) {
-      print('setAppLimit error: $e');
+      print('getAppLimit error: $e');
       print('Stack trace: $stackTrace');
       return {'success': false, 'message': 'Network error ($e)'};
     }
@@ -418,46 +419,7 @@ class AuthService {
     } catch (e, stackTrace) {
       print('getInstalledApps error: $e');
       print('Stack trace: $stackTrace');
-      return {'success': false, 'message': 'Network error ($e)'};
-    }
-  }
-
-  Future<Map<String, dynamic>> getAppLimits({
-    required String email,
-    required String password,
-    required String childHash,
-  }) async {
-    print('AuthService.getAppLimits called for $childHash');
-
-    try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/'),
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Email': email,
-              'X-Password': password,
-            },
-          )
-          .timeout(const Duration(seconds: 15));
-
-      print('getAppLimits status: ${response.statusCode}');
-      print('getAppLimits body: ${response.body}');
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data};
-      } else {
-        return {
-          'success': false,
-          'message': data['error'] ?? 'Failed to fetch app limits',
-        };
-      }
-    } catch (e, stackTrace) {
-      print('getAppLimits error: $e');
-      print('Stack trace: $stackTrace');
-      return {'success': false, 'message': 'Network error ($e)'};
+return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
@@ -506,52 +468,20 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> updateAppLimit({
+  Future<Map<String, dynamic>> setAppLimit({
     required String email,
     required String password,
     required String childHash,
-    required int limitId,
+    required int installedAppId,
     required int limitMinutes,
-    required bool isActive,
   }) async {
-    print('AuthService.updateAppLimit called for $childHash');
-
-    try {
-      final response = await http
-          .patch(
-            Uri.parse(
-              '$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/',
-            ),
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Email': email,
-              'X-Password': password,
-            },
-            body: jsonEncode({
-              'limit_minutes': limitMinutes,
-              'is_active': isActive,
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      print('updateAppLimit status: ${response.statusCode}');
-      print('updateAppLimit body: ${response.body}');
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data};
-      } else {
-        return {
-          'success': false,
-          'message': data['error'] ?? 'Failed to update app limit',
-        };
-      }
-    } catch (e, stackTrace) {
-      print('updateAppLimit error: $e');
-      print('Stack trace: $stackTrace');
-      return {'success': false, 'message': 'Network error ($e)'};
-    }
+    return createAppLimit(
+      email: email,
+      password: password,
+      childHash: childHash,
+      installedAppId: installedAppId,
+      limitMinutes: limitMinutes,
+    );
   }
 
   Future<Map<String, dynamic>> deleteAppLimit({
@@ -560,28 +490,25 @@ class AuthService {
     required String childHash,
     required int limitId,
   }) async {
-    print('AuthService.deleteAppLimit called for $childHash');
-
+    print('AuthService.deleteAppLimit called for $childHash limit $limitId');
     try {
       final response = await http
           .delete(
-            Uri.parse(
-              '$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/',
-            ),
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/'),
             headers: {
               'Content-Type': 'application/json',
               'X-Email': email,
               'X-Password': password,
             },
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 10));
 
       print('deleteAppLimit status: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         return {'success': true};
       } else {
-        final data = jsonDecode(response.body);
+        final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
         return {
           'success': false,
           'message': data['error'] ?? 'Failed to delete app limit',
@@ -589,6 +516,42 @@ class AuthService {
       }
     } catch (e, stackTrace) {
       print('deleteAppLimit error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
+  Future<Map<String, dynamic>> getChildUsage({
+    required String email,
+    required String password,
+    required String childHash,
+    String? date,
+  }) async {
+    print('AuthService.getChildUsage called for $childHash');
+    final uri = Uri.parse(
+      '$baseUrl/api/mobile/children/$childHash/usage',
+    ).replace(queryParameters: date != null ? {'date': date} : null);
+
+    try {
+      final response = await http
+          .get(uri, headers: {'X-Email': email, 'X-Password': password})
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint('getChildUsage status: ${response.statusCode}');
+      debugPrint('getChildUsage body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to fetch usage',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('getChildUsage error: $e');
       print('Stack trace: $stackTrace');
       return {'success': false, 'message': 'Network error ($e)'};
     }

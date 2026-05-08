@@ -18,7 +18,7 @@ class AppParentDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai_parent.db');
     _db = await openDatabase(
       dbPath,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -97,6 +97,7 @@ class AppParentDatabase {
         child_hash TEXT NOT NULL,
         package_name TEXT NOT NULL,
         remote_id INTEGER,
+        cloud_limit_id INTEGER,
         limit_minutes INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         UNIQUE(child_hash, package_name)
@@ -380,6 +381,7 @@ class AppParentDatabase {
     required String childHash,
     required String packageName,
     int? remoteId,
+    int? cloudLimitId,
     required int limitMinutes,
   }) async {
     await initialize();
@@ -389,17 +391,23 @@ class AppParentDatabase {
     final trimmedPackage = packageName.trim();
     if (trimmedPackage.isEmpty) return;
 
-    await _requireDb().insert(
-      'app_limits',
-      {
-        'child_hash': trimmedChildHash,
-        'package_name': trimmedPackage,
-        'remote_id': remoteId,
-        'limit_minutes': limitMinutes,
-        'created_at': DateTime.now().toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    try {
+      await _requireDb().insert(
+        'app_limits',
+        {
+          'child_hash': trimmedChildHash,
+          'package_name': trimmedPackage,
+          'remote_id': remoteId,
+          'cloud_limit_id': cloudLimitId,
+          'limit_minutes': limitMinutes,
+          'created_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      print('upsertAppLimit: Inserted for $trimmedPackage with $limitMinutes minutes');
+    } catch (e) {
+      print('upsertAppLimit error: $e');
+    }
   }
 
   Future<List<Map<String, dynamic>>> getAppLimits({
@@ -418,8 +426,25 @@ class AppParentDatabase {
     return rows.map((row) => {
       'package_name': row['package_name'],
       'remote_id': row['remote_id'],
+      'cloud_limit_id': row['cloud_limit_id'],
       'limit_minutes': row['limit_minutes'],
     }).toList();
+  }
+
+  Future<void> deleteAppLimit({
+    required String childHash,
+    required String packageName,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    final trimmedPackage = packageName.trim();
+    if (trimmedChildHash.isEmpty || trimmedPackage.isEmpty) return;
+
+    await _requireDb().delete(
+      'app_limits',
+      where: 'child_hash = ? AND package_name = ?',
+      whereArgs: [trimmedChildHash, trimmedPackage],
+    );
   }
 
   Future<void> clearChildren() async {
