@@ -20,6 +20,7 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
   final _codeController = TextEditingController();
   int _selectedOption = 0;
   bool _isLoading = false;
+  bool _hasScanned = false;
   final MobileScannerController _scannerController = MobileScannerController();
 
   @override
@@ -52,6 +53,8 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
   }
 
   void _showScannerDialog() {
+    _hasScanned = false;
+    _scannerController.start();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -64,7 +67,11 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
               backgroundColor: Colors.transparent,
               leading: IconButton(
                 icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  _hasScanned = false;
+                  _scannerController.stop();
+                  Navigator.pop(context);
+                },
               ),
               title: const Text(
                 'Scan QR Code',
@@ -74,13 +81,18 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
             Expanded(
               child: MobileScanner(
                 controller: _scannerController,
-                onDetect: (capture) {
+                onDetect: (capture) async {
+                  if (_hasScanned) return;
                   final List<Barcode> barcodes = capture.barcodes;
                   for (final barcode in barcodes) {
                     if (barcode.rawValue != null) {
+                      _hasScanned = true;
                       _codeController.text = barcode.rawValue!;
-                      Navigator.pop(context);
-                      _submit();
+                      await _scannerController.stop();
+                      if (mounted) {
+                        Navigator.pop(context);
+                        _submit();
+                      }
                       break;
                     }
                   }
@@ -224,7 +236,10 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                     'Manually enter the code from your parent\'s device',
                 icon: Icons.keyboard,
                 isSelected: _selectedOption == 1,
-                onTap: () => setState(() => _selectedOption = 1),
+                onTap: () => setState(() {
+                  _selectedOption = 1;
+                  _hasScanned = false;
+                }),
               ),
 
               const SizedBox(height: 24),
