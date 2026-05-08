@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/child_permissions_screen.dart';
 import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/child/device_auth_service.dart';
 import 'package:myapp/services/session_service.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -89,10 +90,7 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Text(
                 'Point camera at the QR code from parent\'s device',
-                style: GoogleFonts.poppins(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14),
               ),
             ),
           ],
@@ -105,7 +103,9 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
     final code = _codeController.text.trim();
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the pairing code or scan QR')),
+        const SnackBar(
+          content: Text('Please enter the pairing code or scan QR'),
+        ),
       );
       return;
     }
@@ -125,12 +125,13 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
     if (result['success']) {
       final deviceToken = result['device_token'] as String;
       await SessionService.saveChildSession(deviceToken: deviceToken);
-      
+      await DeviceAuthService().saveDeviceToken(deviceToken);
+
+      if (!mounted) return;
+
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => const ChildPermissionsScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const ChildPermissionsScreen()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -177,29 +178,31 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Option 1: Scan QR
               _buildOptionCard(
                 title: 'Scan QR Code',
-                description: 'Scan the QR code displayed on your parent\'s device',
+                description:
+                    'Scan the QR code displayed on your parent\'s device',
                 icon: Icons.qr_code_scanner,
                 isSelected: _selectedOption == 0,
                 onTap: _startScanning,
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Option 2: Type Code
               _buildOptionCard(
                 title: 'Enter Code',
-                description: 'Manually enter the code from your parent\'s device',
+                description:
+                    'Manually enter the code from your parent\'s device',
                 icon: Icons.keyboard,
                 isSelected: _selectedOption == 1,
                 onTap: () => setState(() => _selectedOption = 1),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Show text field if option 2 is selected
               if (_selectedOption == 1) ...[
                 Text(
@@ -235,15 +238,18 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide(color: AppColors.accentBlue, width: 2),
+                      borderSide: BorderSide(
+                        color: AppColors.accentBlue,
+                        width: 2,
+                      ),
                     ),
                   ),
                   textAlign: TextAlign.center,
                 ),
               ],
-              
+
               const SizedBox(height: 32),
-              
+
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -337,10 +343,7 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textGrey,
-                    ),
+                    style: TextStyle(fontSize: 12, color: AppColors.textGrey),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

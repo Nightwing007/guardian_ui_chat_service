@@ -8,6 +8,9 @@ class SessionService {
 
   static const String _childDeviceTokenKey = 'child_device_token';
   static const String _isChildLinkedKey = 'is_child_linked';
+  static const String _userRoleKey = 'user_role';
+  static const String childRole = 'child';
+  static const String parentRole = 'parent';
 
   static Future<void> saveParentSession({
     required String email,
@@ -19,6 +22,7 @@ class SessionService {
     await prefs.setString(_parentPasswordKey, password);
     await prefs.setString(_childHashKey, childHash);
     await prefs.setBool(_isParentLoggedInKey, true);
+    await prefs.setString(_userRoleKey, parentRole);
   }
 
   static Future<Map<String, String?>> getParentSession() async {
@@ -37,12 +41,16 @@ class SessionService {
     await prefs.remove(_parentPasswordKey);
     await prefs.remove(_childHashKey);
     await prefs.remove(_isParentLoggedInKey);
+    if (prefs.getString(_userRoleKey) == parentRole) {
+      await prefs.remove(_userRoleKey);
+    }
   }
 
   static Future<void> saveChildSession({required String deviceToken}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_childDeviceTokenKey, deviceToken);
     await prefs.setBool(_isChildLinkedKey, true);
+    await prefs.setString(_userRoleKey, childRole);
   }
 
   static Future<Map<String, String?>> getChildSession() async {
@@ -50,12 +58,21 @@ class SessionService {
     return {
       'deviceToken': prefs.getString(_childDeviceTokenKey),
       'isLinked': prefs.getBool(_isChildLinkedKey)?.toString() ?? 'false',
+      'role': prefs.getString(_userRoleKey),
     };
+  }
+
+  static Future<String?> getUserRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userRoleKey);
   }
 
   static Future<void> clearChildSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_childDeviceTokenKey);
     await prefs.remove(_isChildLinkedKey);
+    if (prefs.getString(_userRoleKey) == childRole) {
+      await prefs.remove(_userRoleKey);
+    }
   }
 }

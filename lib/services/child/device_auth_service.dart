@@ -10,7 +10,8 @@ class DeviceAuthService {
 
   // Hardcoded dev credentials — used when no credentials are stored
   static const _devChildHash = 'D8L_Y5hP3iV7Ht8i';
-  static const _devDeviceToken = 'seed-device-token-dev-only-not-for-production-abc123';
+  static const _devDeviceToken =
+      'seed-device-token-dev-only-not-for-production-abc123';
 
   static const bool _useDevCredentials = true;
 
@@ -20,6 +21,11 @@ class DeviceAuthService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_childHashKey, childHash);
+    await prefs.setString(_deviceTokenKey, deviceToken);
+  }
+
+  Future<void> saveDeviceToken(String deviceToken) async {
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_deviceTokenKey, deviceToken);
   }
 
@@ -41,7 +47,10 @@ class DeviceAuthService {
 
   Future<bool> isDeviceRegistered() async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.containsKey(_childHashKey) && prefs.containsKey(_deviceTokenKey)) return true;
+    if (prefs.containsKey(_childHashKey) &&
+        prefs.containsKey(_deviceTokenKey)) {
+      return true;
+    }
     return _useDevCredentials;
   }
 

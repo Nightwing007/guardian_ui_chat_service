@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
+import 'package:myapp/screens/child/main_layout.dart';
 import 'package:myapp/screens/welcome_screen.dart';
 import 'package:myapp/screens/parent/parent_main_layout.dart';
 import 'package:myapp/services/session_service.dart';
@@ -36,7 +37,8 @@ class SessionWrapper extends StatefulWidget {
 
 class _SessionWrapperState extends State<SessionWrapper> {
   bool _isLoading = true;
-  Map<String, String?>? _session;
+  Map<String, String?>? _parentSession;
+  Map<String, String?>? _childSession;
 
   @override
   void initState() {
@@ -45,9 +47,11 @@ class _SessionWrapperState extends State<SessionWrapper> {
   }
 
   Future<void> _checkSession() async {
-    final session = await SessionService.getParentSession();
+    final parentSession = await SessionService.getParentSession();
+    final childSession = await SessionService.getChildSession();
     setState(() {
-      _session = session;
+      _parentSession = parentSession;
+      _childSession = childSession;
       _isLoading = false;
     });
   }
@@ -58,20 +62,24 @@ class _SessionWrapperState extends State<SessionWrapper> {
       return const Scaffold(
         backgroundColor: AppColors.scaffoldBackground,
         body: Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primaryPurple,
-          ),
+          child: CircularProgressIndicator(color: AppColors.primaryPurple),
         ),
       );
     }
 
-    if (_session?['isLoggedIn'] == 'true' &&
-        _session?['email'] != null &&
-        _session?['password'] != null) {
+    if (_childSession?['role'] == SessionService.childRole &&
+        _childSession?['isLinked'] == 'true' &&
+        _childSession?['deviceToken'] != null) {
+      return const MainLayout();
+    }
+
+    if (_parentSession?['isLoggedIn'] == 'true' &&
+        _parentSession?['email'] != null &&
+        _parentSession?['password'] != null) {
       return ParentMainLayout(
-        email: _session!['email']!,
-        password: _session!['password']!,
-        childHash: _session!['childHash'] ?? '',
+        email: _parentSession!['email']!,
+        password: _parentSession!['password']!,
+        childHash: _parentSession!['childHash'] ?? '',
       );
     }
 
