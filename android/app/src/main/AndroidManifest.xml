@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Camera for QR code scanning -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <!-- Usage stats (special permission — user must grant in Settings) -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />

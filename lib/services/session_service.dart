@@ -6,6 +6,9 @@ class SessionService {
   static const String _childHashKey = 'child_hash';
   static const String _isParentLoggedInKey = 'is_parent_logged_in';
 
+  static const String _childDeviceTokenKey = 'child_device_token';
+  static const String _isChildLinkedKey = 'is_child_linked';
+
   static Future<void> saveParentSession({
     required String email,
     required String password,
@@ -34,5 +37,25 @@ class SessionService {
     await prefs.remove(_parentPasswordKey);
     await prefs.remove(_childHashKey);
     await prefs.remove(_isParentLoggedInKey);
+  }
+
+  static Future<void> saveChildSession({required String deviceToken}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_childDeviceTokenKey, deviceToken);
+    await prefs.setBool(_isChildLinkedKey, true);
+  }
+
+  static Future<Map<String, String?>> getChildSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'deviceToken': prefs.getString(_childDeviceTokenKey),
+      'isLinked': prefs.getBool(_isChildLinkedKey)?.toString() ?? 'false',
+    };
+  }
+
+  static Future<void> clearChildSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_childDeviceTokenKey);
+    await prefs.remove(_isChildLinkedKey);
   }
 }

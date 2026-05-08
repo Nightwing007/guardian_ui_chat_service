@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/child_permissions_screen.dart';
+import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/session_service.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class LinkParentScreen extends StatefulWidget {
   const LinkParentScreen({super.key});
@@ -12,21 +16,130 @@ class LinkParentScreen extends StatefulWidget {
 
 class _LinkParentScreenState extends State<LinkParentScreen> {
   final _codeController = TextEditingController();
-  int _selectedOption = 0; // 0 = scan, 1 = type code
+  int _selectedOption = 0;
+  bool _isLoading = false;
+  final MobileScannerController _scannerController = MobileScannerController();
 
   @override
   void dispose() {
     _codeController.dispose();
+    _scannerController.dispose();
     super.dispose();
   }
 
-  void _submit() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ChildPermissionsScreen(),
+  Future<void> _requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    if (status.isDenied || status.isPermanentlyDenied) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Camera permission is required to scan QR code'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _startScanning() async {
+    await _requestCameraPermission();
+    if (mounted) {
+      setState(() => _selectedOption = 0);
+      _showScannerDialog();
+    }
+  }
+
+  void _showScannerDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            AppBar(
+              backgroundColor: Colors.transparent,
+              leading: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: const Text(
+                'Scan QR Code',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            Expanded(
+              child: MobileScanner(
+                controller: _scannerController,
+                onDetect: (capture) {
+                  final List<Barcode> barcodes = capture.barcodes;
+                  for (final barcode in barcodes) {
+                    if (barcode.rawValue != null) {
+                      _codeController.text = barcode.rawValue!;
+                      Navigator.pop(context);
+                      _submit();
+                      break;
+                    }
+                  }
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Point camera at the QR code from parent\'s device',
+                style: GoogleFonts.poppins(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _submit() async {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter the pairing code or scan QR')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final result = await AuthService().claimPairingToken(
+      pairingToken: code,
+      deviceModel: 'Android Device',
+      platform: 'Android',
+    );
+
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
+
+    if (result['success']) {
+      final deviceToken = result['device_token'] as String;
+      await SessionService.saveChildSession(deviceToken: deviceToken);
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ChildPermissionsScreen(),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Failed to connect'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -71,7 +184,7 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                 description: 'Scan the QR code displayed on your parent\'s device',
                 icon: Icons.qr_code_scanner,
                 isSelected: _selectedOption == 0,
-                onTap: () => setState(() => _selectedOption = 0),
+                onTap: _startScanning,
               ),
               
               const SizedBox(height: 16),
@@ -79,7 +192,7 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
               // Option 2: Type Code
               _buildOptionCard(
                 title: 'Enter Code',
-                description: 'Manually enter the 6-digit code from your parent\'s device',
+                description: 'Manually enter the code from your parent\'s device',
                 icon: Icons.keyboard,
                 isSelected: _selectedOption == 1,
                 onTap: () => setState(() => _selectedOption = 1),
@@ -100,22 +213,19 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _codeController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
                   style: GoogleFonts.poppins(
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
-                    letterSpacing: 8,
+                    letterSpacing: 2,
                   ),
                   decoration: InputDecoration(
-                    counterText: '',
-                    hintText: '000000',
+                    hintText: 'Enter code',
                     hintStyle: GoogleFonts.poppins(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textGrey,
-                      letterSpacing: 8,
+                      letterSpacing: 2,
                     ),
                     filled: true,
                     fillColor: AppColors.cardBlueBackground,
@@ -138,21 +248,32 @@ class _LinkParentScreenState extends State<LinkParentScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _submit,
+                  onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryPurple,
+                    backgroundColor: _isLoading
+                        ? AppColors.primaryPurple.withValues(alpha: 0.5)
+                        : AppColors.primaryPurple,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Continue',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ],

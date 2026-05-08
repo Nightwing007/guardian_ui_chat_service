@@ -259,4 +259,49 @@ class AuthService {
       return {'success': false, 'message': 'Network error ($e)'};
     }
   }
+
+  Future<Map<String, dynamic>> claimPairingToken({
+    required String pairingToken,
+    required String deviceModel,
+    required String platform,
+  }) async {
+    print('AuthService.claimPairingToken called');
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/pair/claim'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'pairing_token': pairingToken,
+              'device_info': {
+                'model': deviceModel,
+                'platform': platform,
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print('claimPairingToken status: ${response.statusCode}');
+      print('claimPairingToken body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'device_token': data['device_token'],
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to claim pairing token',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('claimPairingToken error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
 }

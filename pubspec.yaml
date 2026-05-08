@@ -47,6 +47,7 @@ dependencies:
   file_picker: ^8.0.0
   path_provider: ^2.1.2
   flutter_gemma: ^0.14.5
+  mobile_scanner: ^6.0.2
 
 dev_dependencies:
   flutter_test:
