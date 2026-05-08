@@ -51,6 +51,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       },
       email: widget.email,
       password: widget.password,
+      childHash: widget.childHash,
     ),
     ParentProfileScreen(
       email: widget.email,

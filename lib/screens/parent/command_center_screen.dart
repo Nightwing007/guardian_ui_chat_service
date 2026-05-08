@@ -9,12 +9,14 @@ class CommandCenterScreen extends StatefulWidget {
   final VoidCallback onBack;
   final String email;
   final String password;
+  final String childHash;
 
   const CommandCenterScreen({
     super.key,
     required this.onBack,
     required this.email,
     required this.password,
+    required this.childHash,
   });
 
   @override
@@ -103,7 +105,13 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   trailing: _buildIconBtn(Icons.edit, onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const SetAppTimingScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => SetAppTimingScreen(
+                          email: widget.email,
+                          password: widget.password,
+                          childHash: widget.childHash,
+                        ),
+                      ),
                     );
                   }),
                 ),
