@@ -521,6 +521,41 @@ return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
+  Future<Map<String, dynamic>> getChildAppLimits({
+    required String childHash,
+    required String deviceToken,
+  }) async {
+    print('AuthService.getChildAppLimits called for $childHash');
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/children/$childHash/app-limits/'),
+            headers: {
+              'X-Device-Token': deviceToken,
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      print('getChildAppLimits status: ${response.statusCode}');
+      print('getChildAppLimits body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to fetch app limits',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('getChildAppLimits error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
   Future<Map<String, dynamic>> getChildUsage({
     required String email,
     required String password,

@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/home_screen.dart';
 import 'package:myapp/screens/child/tasks_screen.dart';
 import 'package:myapp/screens/child/chat_screen.dart';
 import 'package:myapp/screens/child/safety_screen.dart';
 import 'package:myapp/screens/child/child_profile_screen.dart';
-import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
-import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 import 'package:myapp/services/app_database.dart';
+import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/child/usage_submission_service.dart';
 import 'package:myapp/services/child/app_blocker_service.dart';
 import 'package:myapp/services/child/installed_apps_sync_service.dart';
+import 'package:myapp/services/session_service.dart';
+import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
+import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 
 class MainLayout extends StatefulWidget {
   final VoidCallback? onReady;
@@ -57,9 +59,43 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     await AppBlockerService().startMonitoring();
     InstalledAppsSyncService().syncInstalledApps();
     InstalledAppsSyncService().startPackageChangeWatcher();
+    _syncAppLimitsFromCloud();
     if (mounted) {
       setState(() => _dbReady = true);
       widget.onReady?.call();
+    }
+  }
+
+  Future<void> _syncAppLimitsFromCloud() async {
+    try {
+      final session = await SessionService.getChildSession();
+      final deviceToken = session['deviceToken'] as String?;
+      final childHash = session['childHash'] as String?;
+
+      if (deviceToken == null || childHash == null) {
+        print('App limits sync skipped: missing credentials');
+        return;
+      }
+
+      final result = await AuthService().getChildAppLimits(
+        childHash: childHash,
+        deviceToken: deviceToken,
+      );
+
+      if (result['success'] == true && result['data'] is Map) {
+        final data = result['data'] as Map<String, dynamic>;
+        final limits = data['limits'] as List?;
+        if (limits != null) {
+          final limitsList = limits
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          await AppDatabase().child.saveAppLimits(limitsList);
+          print('Synced ${limits.length} app limits to local DB');
+        }
+      }
+    } catch (e) {
+      print('Error syncing app limits: $e');
     }
   }
 

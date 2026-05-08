@@ -107,33 +107,6 @@ class AppDatabase {
       )
     ''');
 
-    // Seed per-app limits — only specific apps get a limit.
-    const seedLimits = [
-      {
-        'package_name': 'com.whatsapp',
-        'app_name': 'WhatsApp',
-        'allowed_minutes': 500,
-      },
-      {
-        'package_name': 'com.instagram.android',
-        'app_name': 'Instagram',
-        'allowed_minutes': 0,
-      },
-      {
-        'package_name': 'com.google.android.youtube',
-        'app_name': 'YouTube',
-        'allowed_minutes': 120,
-      },
-      {
-        'package_name': 'com.zhiliaoapp.musically',
-        'app_name': 'TikTok',
-        'allowed_minutes': 90,
-      },
-    ];
-    for (final limit in seedLimits) {
-      await db.insert('app_limits', limit);
-    }
-
     // ── chat_messages ──
     await db.execute('''
       CREATE TABLE chat_messages (
@@ -605,6 +578,53 @@ class ChildData {
     }
 
     await batch.commit(noResult: true);
+  }
+
+  // ── App Limits (SQLite) ───────────────────────────────────────────────
+
+  Future<void> saveAppLimits(List<Map<String, dynamic>> limits) async {
+    print('saveAppLimits called with ${limits.length} items');
+
+    final batch = _db.batch();
+
+    for (final limit in limits) {
+      final packageName = (limit['package_name'] as String?)?.trim() ?? '';
+      final allowedMinutes = limit['limit_minutes'] as int? ?? 0;
+
+      if (packageName.isEmpty) continue;
+
+      final appRows = await _db.query(
+        'installed_apps',
+        columns: ['name'],
+        where: 'package_name = ?',
+        whereArgs: [packageName],
+        limit: 1,
+      );
+
+      String appName = packageName;
+      if (appRows.isNotEmpty) {
+        final storedName = appRows.first['name'] as String?;
+        if (storedName != null && storedName.isNotEmpty) {
+          appName = storedName;
+        }
+      }
+
+      print('Inserting: package=$packageName, appName=$appName, minutes=$allowedMinutes');
+
+      batch.insert('app_limits', {
+        'package_name': packageName,
+        'app_name': appName,
+        'allowed_minutes': allowedMinutes,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    await batch.commit(noResult: true);
+    print('saveAppLimits completed');
+  }
+
+  Future<void> clearAppLimits() async {
+    await _db.delete('app_limits');
+    print('Cleared all app limits from local DB');
   }
 
   Future<void> markLocalUsageSynced({required String childHash}) async {

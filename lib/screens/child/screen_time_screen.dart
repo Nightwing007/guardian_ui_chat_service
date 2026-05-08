@@ -5,8 +5,10 @@ import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 import 'package:myapp/widgets/child/buy_additional_time_dialog.dart';
 import 'package:myapp/services/app_database.dart';
+import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/child/app_usage_service.dart';
 import 'package:myapp/services/child/app_icon_cache.dart';
+import 'package:myapp/services/session_service.dart';
 class ScreenTimeScreen extends StatefulWidget {
   final int currentNavIndex;
   final ValueChanged<int> onNavTap;
@@ -27,6 +29,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   Map<String, int> _appLimits = {};
   int _allowedScreenTimeMinutes = 240;
   int _totalPoints = 10;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -56,6 +59,44 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         _totalPoints = points;
       });
     }
+  }
+
+  Future<void> _refreshAppLimits() async {
+    setState(() => _isRefreshing = true);
+    try {
+      await AppDatabase().child.clearAppLimits();
+
+      final session = await SessionService.getChildSession();
+      final deviceToken = session['deviceToken'] as String?;
+      final childHash = session['childHash'] as String?;
+
+      if (deviceToken == null || childHash == null) return;
+
+      final result = await AuthService().getChildAppLimits(
+        childHash: childHash,
+        deviceToken: deviceToken,
+      );
+
+      if (result['success'] == true && result['data'] is Map) {
+        final data = result['data'] as Map<String, dynamic>;
+        final limits = data['limits'] as List?;
+        if (limits != null) {
+          print('Got ${limits.length} limits from cloud');
+          final limitsList = limits
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          print('Limits list: $limitsList');
+          await AppDatabase().child.saveAppLimits(limitsList);
+          print('Saved to local DB, now loading...');
+          await _loadAppLimits();
+          print('Loaded app limits: $_appLimits');
+        }
+      }
+    } catch (e) {
+      print('Error refreshing app limits: $e');
+    }
+    if (mounted) setState(() => _isRefreshing = false);
   }
 
   String _formatDuration(Duration d) {
@@ -116,13 +157,35 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
               children: [
                 _buildScreenTimeCard(),
                 const SizedBox(height: 30),
-                Text(
-                  'App Usage and Limitations',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'App Usage and Limitations',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _isRefreshing ? null : _refreshAppLimits,
+                      child: _isRefreshing
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.accentBlue,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.refresh,
+                              color: AppColors.accentBlue,
+                              size: 24,
+                            ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 15),
                 _buildAppsList(),
@@ -283,10 +346,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       );
     }
 
-    final appsWithLimits = child.appUsageList
-        .where((app) => _appLimits.containsKey(app.packageName))
-        .take(10)
-        .toList();
+    final appsWithLimits = _appLimits.keys.take(10).toList();
 
     if (appsWithLimits.isEmpty) {
       return Container(
@@ -324,7 +384,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       child: Column(
         children: [
           for (int i = 0; i < appsWithLimits.length; i++) ...[
-            _buildRealAppUsageItem(app: appsWithLimits[i]),
+            _buildAppLimitItem(packageName: appsWithLimits[i]),
             if (i < appsWithLimits.length - 1) _buildDivider(),
           ],
         ],
@@ -388,6 +448,77 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           ),
           const SizedBox(width: 15),
           if (hasLimit)
+          GestureDetector(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => BuyAdditionalTimeDialog(appName: displayName),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: AppColors.sosRed,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppLimitItem({required String packageName}) {
+    final allowedMinutes = _appLimits[packageName] ?? 0;
+    final child = _db.child;
+    final usageApp = child.appUsageList.where((a) => a.packageName == packageName).firstOrNull;
+    
+    String displayName = packageName.split('.').last;
+    if (usageApp != null && usageApp.appName.isNotEmpty) {
+      displayName = usageApp.appName.contains('.') 
+          ? usageApp.appName.split('.').last 
+          : usageApp.appName;
+    }
+
+    String timeString;
+    if (usageApp != null) {
+      final usedHours = usageApp.totalTimeInForeground.inMinutes / 60.0;
+      final allowedHours = allowedMinutes / 60;
+      timeString = '${usedHours.toStringAsFixed(1)}hr / ${allowedHours.toStringAsFixed(1)}hr';
+    } else {
+      timeString = '0hr / ${(allowedMinutes / 60).toStringAsFixed(1)}hr';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Row(
+        children: [
+          _appIconCache.getAppIconWidget(packageName, size: 40),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  displayName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  timeString,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 15),
           GestureDetector(
             onTap: () {
               showDialog(
