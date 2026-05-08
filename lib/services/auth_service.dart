@@ -179,6 +179,50 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> setAppLimit({
+    required String email,
+    required String password,
+    required String childHash,
+    required int installedAppId,
+    required int limitMinutes,
+  }) async {
+    print('AuthService.setAppLimit called for $childHash');
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Email': email,
+              'X-Password': password,
+            },
+            body: jsonEncode({
+              'installed_app_id': installedAppId,
+              'limit_minutes': limitMinutes,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      print('setAppLimit status: ${response.statusCode}');
+      print('setAppLimit body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to set app limit',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('setAppLimit error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
   Future<Map<String, dynamic>> getChildren({
     required String email,
     required String password,

@@ -23,7 +23,9 @@ class SetAppTimingScreen extends StatefulWidget {
 class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _apps = [];
+  List<Map<String, dynamic>> _filteredApps = [];
   final Map<String, int> _appLimits = {};
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -34,28 +36,94 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
-    final result = await AuthService().getChildUsage(
+    final result = await AuthService().getInstalledApps(
       email: widget.email,
       password: widget.password,
       childHash: widget.childHash,
     );
 
-    if (result['success'] == true && result['data'] != null) {
-      await AppParentDatabase().upsertChildUsage(
-        childHash: widget.childHash,
-        usageData: result['data'],
-      );
+    if (result['success'] == true && result['data'] is Map) {
+      final data = result['data'] as Map<String, dynamic>;
+      final installedApps = data['installed_apps'] as List?;
+      if (installedApps != null) {
+        final apps = installedApps
+            .whereType<Map>()
+            .map((app) => Map<String, dynamic>.from(app))
+            .toList();
+
+        await AppParentDatabase().upsertInstalledApps(
+          childHash: widget.childHash,
+          apps: apps,
+        );
+      }
     }
 
-    final apps = await AppParentDatabase().getUsageApps(
+    final apps = await AppParentDatabase().getInstalledApps(
       childHash: widget.childHash,
     );
 
+    final limits = await AppParentDatabase().getAppLimits(
+      childHash: widget.childHash,
+    );
+
+    final limitsMap = <String, int>{};
+    for (final limit in limits) {
+      final packageName = limit['package_name'] as String?;
+      final limitMinutes = limit['limit_minutes'] as int? ?? 0;
+      if (packageName != null && packageName.isNotEmpty) {
+        limitsMap[packageName] = limitMinutes;
+      }
+    }
+
     if (!mounted) return;
 
+    final normalizedApps = apps.map(_normalizeApp).toList();
     setState(() {
-      _apps = apps.map(_normalizeApp).toList();
+      _apps = normalizedApps;
+      _appLimits.clear();
+      _appLimits.addAll(limitsMap);
+      _filteredApps = _filterApps(normalizedApps, _searchQuery);
       _isLoading = false;
+    });
+  }
+
+  Future<void> _saveAppLimit(String packageName, int limitMinutes, int? remoteId) async {
+    await AppParentDatabase().upsertAppLimit(
+      childHash: widget.childHash,
+      packageName: packageName,
+      remoteId: remoteId,
+      limitMinutes: limitMinutes,
+    );
+
+    if (remoteId != null) {
+      await AuthService().setAppLimit(
+        email: widget.email,
+        password: widget.password,
+        childHash: widget.childHash,
+        installedAppId: remoteId,
+        limitMinutes: limitMinutes,
+      );
+    }
+
+    setState(() {
+      _appLimits[packageName] = limitMinutes;
+    });
+  }
+
+  List<Map<String, dynamic>> _filterApps(List<Map<String, dynamic>> apps, String query) {
+    if (query.isEmpty) return apps;
+    final lowerQuery = query.toLowerCase();
+    return apps.where((app) {
+      final appName = (app['app_name'] as String? ?? '').toLowerCase();
+      final packageName = (app['package_name'] as String? ?? '').toLowerCase();
+      return appName.contains(lowerQuery) || packageName.contains(lowerQuery);
+    }).toList();
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query;
+      _filteredApps = _filterApps(_apps, query);
     });
   }
 
@@ -64,13 +132,13 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
     return {
       'id': _asInt(app['id']),
       'package_name': packageName,
-      'app_name':
-          _firstNonEmpty([
+      'app_name': _firstNonEmpty([
             app['app_name']?.toString(),
             app['name']?.toString(),
           ]) ??
           packageName,
       'icon_bytes': app['icon_bytes'],
+      'category': app['category'],
     };
   }
 
@@ -100,12 +168,6 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
       Color(0xFF64DD17),
     ];
     return colors[packageName.hashCode.abs() % colors.length];
-  }
-
-  void _updateAppLimit(String packageName, int limitMinutes) {
-    setState(() {
-      _appLimits[packageName] = limitMinutes;
-    });
   }
 
   @override
@@ -145,28 +207,47 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
                 ],
               ),
             ),
-
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextField(
+                onChanged: _onSearchChanged,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Search apps...',
+                  hintStyle: TextStyle(color: Color(0xFF888888)),
+                  border: InputBorder.none,
+                  icon: Icon(Icons.search, color: Color(0xFF888888)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primaryPurple,
-                      ),
-                    )
-                  : _apps.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No app usage data found',
-                        style: TextStyle(color: AppColors.textGrey),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      itemCount: _apps.length,
-                      itemBuilder: (context, index) {
-                        final item = _apps[index];
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryPurple,
+                  ),
+                )
+              : _filteredApps.isEmpty
+              ? Center(
+                  child: Text(
+                    _searchQuery.isNotEmpty ? 'No apps found' : 'No apps found',
+                    style: TextStyle(color: AppColors.textGrey),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  itemCount: _filteredApps.length,
+                  itemBuilder: (context, index) {
+                    final item = _filteredApps[index];
                         final packageName = item['package_name'] as String;
                         final appName = item['app_name'] as String;
+                        final remoteId = item['id'] as int?;
                         final limitMinutes = _appLimits[packageName] ?? 0;
                         final limitText = limitMinutes > 0
                             ? '${(limitMinutes / 60).floor()}hr ${limitMinutes % 60}m'
@@ -242,9 +323,10 @@ class _SetAppTimingScreenState extends State<SetAppTimingScreen> {
                                       );
 
                                   if (newDuration != null) {
-                                    _updateAppLimit(
+                                    _saveAppLimit(
                                       packageName,
                                       newDuration.inMinutes,
+                                      remoteId,
                                     );
                                   }
                                 },

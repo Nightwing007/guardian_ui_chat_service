@@ -41,6 +41,7 @@ class AppParentDatabase {
 
     await _createAppUsageTable(db);
     await _createInstalledAppsTable(db);
+    await _createAppLimitsTable(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -49,6 +50,9 @@ class AppParentDatabase {
     }
     if (oldVersion < 3) {
       await _createInstalledAppsTable(db);
+    }
+    if (oldVersion < 4) {
+      await _createAppLimitsTable(db);
     }
   }
 
@@ -81,6 +85,20 @@ class AppParentDatabase {
         icon_bytes TEXT,
         raw_json TEXT NOT NULL,
         fetched_at TEXT NOT NULL,
+        UNIQUE(child_hash, package_name)
+      )
+    ''');
+  }
+
+  Future<void> _createAppLimitsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE app_limits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        child_hash TEXT NOT NULL,
+        package_name TEXT NOT NULL,
+        remote_id INTEGER,
+        limit_minutes INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
         UNIQUE(child_hash, package_name)
       )
     ''');
@@ -356,6 +374,52 @@ class AppParentDatabase {
       where: 'child_hash = ?',
       whereArgs: [childHash.trim()],
     );
+  }
+
+  Future<void> upsertAppLimit({
+    required String childHash,
+    required String packageName,
+    int? remoteId,
+    required int limitMinutes,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return;
+
+    final trimmedPackage = packageName.trim();
+    if (trimmedPackage.isEmpty) return;
+
+    await _requireDb().insert(
+      'app_limits',
+      {
+        'child_hash': trimmedChildHash,
+        'package_name': trimmedPackage,
+        'remote_id': remoteId,
+        'limit_minutes': limitMinutes,
+        'created_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAppLimits({
+    required String childHash,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return [];
+
+    final rows = await _requireDb().query(
+      'app_limits',
+      where: 'child_hash = ?',
+      whereArgs: [trimmedChildHash],
+    );
+
+    return rows.map((row) => {
+      'package_name': row['package_name'],
+      'remote_id': row['remote_id'],
+      'limit_minutes': row['limit_minutes'],
+    }).toList();
   }
 
   Future<void> clearChildren() async {
