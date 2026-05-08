@@ -1,0 +1,254 @@
+import 'dart:convert';
+
+import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart';
+
+class AppParentDatabase {
+  static final AppParentDatabase _instance = AppParentDatabase._internal();
+  factory AppParentDatabase() => _instance;
+  AppParentDatabase._internal();
+
+  Database? _db;
+  bool _initialized = false;
+
+  Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
+
+    final dbPath = p.join(await getDatabasesPath(), 'guardian_ai_parent.db');
+    _db = await openDatabase(
+      dbPath,
+      version: 2,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE child (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remote_id TEXT,
+        child_hash TEXT NOT NULL UNIQUE,
+        first_name TEXT,
+        last_name TEXT,
+        date_of_birth TEXT,
+        is_paired INTEGER NOT NULL DEFAULT 0,
+        raw_json TEXT NOT NULL,
+        synced_at TEXT NOT NULL
+      )
+    ''');
+
+    await _createAppUsageTable(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createAppUsageTable(db);
+    }
+  }
+
+  Future<void> _createAppUsageTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE app_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        child_hash TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        package_name TEXT NOT NULL,
+        app_name TEXT NOT NULL,
+        foreground_ms INTEGER NOT NULL DEFAULT 0,
+        opens INTEGER NOT NULL DEFAULT 0,
+        raw_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        UNIQUE(child_hash, usage_date, package_name)
+      )
+    ''');
+  }
+
+  Future<void> upsertChildren(List<Map<String, dynamic>> children) async {
+    await initialize();
+    final db = _requireDb();
+    final batch = db.batch();
+    final syncedAt = DateTime.now().toIso8601String();
+
+    for (final child in children) {
+      final childHash = child['child_hash']?.toString().trim() ?? '';
+      if (childHash.isEmpty) continue;
+
+      batch.insert('child', {
+        'remote_id': _firstNonEmpty([
+          child['id']?.toString(),
+          child['child_id']?.toString(),
+        ]),
+        'child_hash': childHash,
+        'first_name': child['first_name']?.toString(),
+        'last_name': child['last_name']?.toString(),
+        'date_of_birth': child['date_of_birth']?.toString(),
+        'is_paired': child['is_paired'] == true ? 1 : 0,
+        'raw_json': jsonEncode(child),
+        'synced_at': syncedAt,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<Map<String, dynamic>>> getChildren() async {
+    await initialize();
+    final rows = await _requireDb().query('child', orderBy: 'first_name ASC');
+
+    return rows.map((row) {
+      final rawJson = row['raw_json'] as String?;
+      if (rawJson != null && rawJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawJson);
+          if (decoded is Map<String, dynamic>) return decoded;
+          if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        } catch (_) {
+          // Fall back to the normalized columns below.
+        }
+      }
+
+      return {
+        'id': row['remote_id'],
+        'child_hash': row['child_hash'],
+        'first_name': row['first_name'],
+        'last_name': row['last_name'],
+        'date_of_birth': row['date_of_birth'],
+        'is_paired': row['is_paired'] == 1,
+      };
+    }).toList();
+  }
+
+  Future<void> upsertChildUsage({
+    required String childHash,
+    required Map<String, dynamic> usageData,
+    String? date,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return;
+
+    final usageDate = date ?? _todayKey();
+    final apps = usageData['apps'];
+    if (apps is! List) return;
+
+    final db = _requireDb();
+    final batch = db.batch();
+    final fetchedAt = DateTime.now().toIso8601String();
+
+    batch.delete(
+      'app_usage',
+      where: 'child_hash = ? AND usage_date = ?',
+      whereArgs: [trimmedChildHash, usageDate],
+    );
+
+    for (final app in apps.whereType<Map>()) {
+      final packageName = app['package_name']?.toString().trim() ?? '';
+      if (packageName.isEmpty) continue;
+
+      batch.insert('app_usage', {
+        'child_hash': trimmedChildHash,
+        'usage_date': usageDate,
+        'package_name': packageName,
+        'app_name': app['app_name']?.toString() ?? packageName,
+        'foreground_ms': _asInt(app['foreground_ms']),
+        'opens': _asInt(app['opens']),
+        'raw_json': jsonEncode(app),
+        'fetched_at': fetchedAt,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  Future<Map<String, dynamic>> getChildUsage({
+    required String childHash,
+    String? date,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) {
+      return {'apps': <Map<String, dynamic>>[], 'total_foreground_ms': 0};
+    }
+
+    final rows = await _requireDb().query(
+      'app_usage',
+      where: 'child_hash = ? AND usage_date = ?',
+      whereArgs: [trimmedChildHash, date ?? _todayKey()],
+      orderBy: 'foreground_ms DESC',
+    );
+
+    final apps = rows.map((row) {
+      final rawJson = row['raw_json'] as String?;
+      if (rawJson != null && rawJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(rawJson);
+          if (decoded is Map<String, dynamic>) return decoded;
+          if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        } catch (_) {
+          // Fall back to normalized columns below.
+        }
+      }
+
+      return {
+        'package_name': row['package_name'],
+        'app_name': row['app_name'],
+        'foreground_ms': row['foreground_ms'],
+        'opens': row['opens'],
+      };
+    }).toList();
+
+    final totalMs = apps.fold<int>(
+      0,
+      (sum, app) => sum + _asInt(app['foreground_ms']),
+    );
+
+    return {'apps': apps, 'total_foreground_ms': totalMs};
+  }
+
+  Future<void> clearChildUsage({String? childHash}) async {
+    await initialize();
+    if (childHash == null || childHash.trim().isEmpty) {
+      await _requireDb().delete('app_usage');
+      return;
+    }
+
+    await _requireDb().delete(
+      'app_usage',
+      where: 'child_hash = ?',
+      whereArgs: [childHash.trim()],
+    );
+  }
+
+  Future<void> clearChildren() async {
+    await initialize();
+    await _requireDb().delete('app_usage');
+    await _requireDb().delete('child');
+  }
+
+  Database _requireDb() {
+    final db = _db;
+    if (db == null) {
+      throw StateError('Parent database is not initialized');
+    }
+    return db;
+  }
+
+  String? _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      final trimmed = value?.trim();
+      if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+
+  String _todayKey() => DateTime.now().toIso8601String().split('T').first;
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+}

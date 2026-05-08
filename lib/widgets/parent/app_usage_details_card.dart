@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/parent/app_parent_database.dart';
 import 'package:myapp/widgets/parent/app_usage_item.dart';
 
 class AppUsageDetailsCard extends StatefulWidget {
@@ -27,10 +27,10 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
   @override
   void initState() {
     super.initState();
-    _fetchUsage();
+    _loadUsage();
   }
 
-  Future<void> _fetchUsage() async {
+  Future<void> _loadUsage() async {
     if (widget.childHash.isEmpty) {
       setState(() {
         _isLoading = false;
@@ -44,30 +44,19 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
       _error = null;
     });
 
-    final result = await AuthService().getChildUsage(
-      email: widget.email,
-      password: widget.password,
+    final data = await AppParentDatabase().getChildUsage(
       childHash: widget.childHash,
     );
 
     if (!mounted) return;
 
-    if (result['success']) {
-      final data = result['data'] as Map<String, dynamic>;
-      final apps = (data['apps'] as List<dynamic>)
-          .cast<Map<String, dynamic>>();
+    final apps = (data['apps'] as List<dynamic>).cast<Map<String, dynamic>>();
 
-      setState(() {
-        _isLoading = false;
-        _apps = apps;
-        _totalMs = data['total_foreground_ms'] ?? 0;
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
-        _error = result['message'];
-      });
-    }
+    setState(() {
+      _isLoading = false;
+      _apps = apps;
+      _totalMs = data['total_foreground_ms'] as int? ?? 0;
+    });
   }
 
   String _formatMs(int ms) {
@@ -97,9 +86,13 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
             ),
             if (!_isLoading)
               IconButton(
-                onPressed: _fetchUsage,
-                icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
-                tooltip: 'Refresh',
+                onPressed: _loadUsage,
+                icon: const Icon(
+                  Icons.refresh,
+                  color: Colors.white54,
+                  size: 20,
+                ),
+                tooltip: 'Reload cached usage',
               ),
           ],
         ),
@@ -155,7 +148,11 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.phone_android_outlined, color: Colors.white24, size: 40),
+              Icon(
+                Icons.phone_android_outlined,
+                color: Colors.white24,
+                size: 40,
+              ),
               SizedBox(height: 12),
               Text(
                 'No usage data for today',
@@ -169,20 +166,23 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
 
     // Sort by most used
     final sorted = List<Map<String, dynamic>>.from(_apps)
-      ..sort((a, b) => (b['foreground_ms'] as int).compareTo(a['foreground_ms'] as int));
+      ..sort(
+        (a, b) =>
+            _asInt(b['foreground_ms']).compareTo(_asInt(a['foreground_ms'])),
+      );
 
     return Column(
       children: sorted.asMap().entries.map((entry) {
         final index = entry.key;
         final app = entry.value;
-        final ms = app['foreground_ms'] as int;
+        final ms = _asInt(app['foreground_ms']);
         final pct = _totalMs > 0 ? ((ms / _totalMs) * 100).round() : 0;
         final isLast = index == sorted.length - 1;
 
         return AppUsageItem(
-          icon: _buildAppIcon(app['package_name'] as String),
-          appName: app['app_name'] as String,
-          category: app['package_name'] as String,
+          icon: _buildAppIcon(app['package_name']?.toString() ?? ''),
+          appName: app['app_name']?.toString() ?? 'Unknown app',
+          category: app['package_name']?.toString() ?? '',
           usageTime: _formatMs(ms),
           percentage: pct.clamp(1, 100),
           showDivider: !isLast,
@@ -194,21 +194,53 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
   Widget _buildAppIcon(String packageName) {
     // Map well-known package names to colors; fall back to a generic icon
     final iconMap = <String, Map<String, dynamic>>{
-      'com.instagram.android': {'icon': Icons.camera_alt, 'color': const Color(0xFFE1306C)},
+      'com.instagram.android': {
+        'icon': Icons.camera_alt,
+        'color': const Color(0xFFE1306C),
+      },
       'com.whatsapp': {'icon': Icons.chat, 'color': const Color(0xFF25D366)},
-      'com.facebook.katana': {'icon': Icons.facebook, 'color': const Color(0xFF1877F2)},
-      'com.google.android.youtube': {'icon': Icons.play_circle_fill, 'color': const Color(0xFFFF0000)},
-      'com.google.android.gm': {'icon': Icons.email, 'color': const Color(0xFFEA4335)},
-      'org.telegram.messenger': {'icon': Icons.send, 'color': const Color(0xFF0088CC)},
-      'com.snapchat.android': {'icon': Icons.crop_square, 'color': const Color(0xFFFFFC00)},
-      'com.twitter.android': {'icon': Icons.alternate_email, 'color': const Color(0xFF1DA1F2)},
+      'com.facebook.katana': {
+        'icon': Icons.facebook,
+        'color': const Color(0xFF1877F2),
+      },
+      'com.google.android.youtube': {
+        'icon': Icons.play_circle_fill,
+        'color': const Color(0xFFFF0000),
+      },
+      'com.google.android.gm': {
+        'icon': Icons.email,
+        'color': const Color(0xFFEA4335),
+      },
+      'org.telegram.messenger': {
+        'icon': Icons.send,
+        'color': const Color(0xFF0088CC),
+      },
+      'com.snapchat.android': {
+        'icon': Icons.crop_square,
+        'color': const Color(0xFFFFFC00),
+      },
+      'com.twitter.android': {
+        'icon': Icons.alternate_email,
+        'color': const Color(0xFF1DA1F2),
+      },
     };
 
     final entry = iconMap[packageName];
     if (entry != null) {
-      return Icon(entry['icon'] as IconData, color: entry['color'] as Color, size: 24);
+      return Icon(
+        entry['icon'] as IconData,
+        color: entry['color'] as Color,
+        size: 24,
+      );
     }
 
     return const Icon(Icons.apps, color: Colors.white54, size: 24);
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 }

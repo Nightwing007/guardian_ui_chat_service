@@ -6,6 +6,8 @@ import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/parent/connect_screen.dart';
 import 'package:myapp/screens/parent/parent_profile_screen.dart';
 import 'package:myapp/widgets/parent/parent_custom_bottom_nav.dart';
+import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/parent/app_parent_database.dart';
 import 'package:myapp/services/session_service.dart';
 import 'package:myapp/screens/welcome_screen.dart';
 
@@ -27,6 +29,77 @@ class ParentMainLayout extends StatefulWidget {
 
 class _ParentMainLayoutState extends State<ParentMainLayout> {
   int _currentIndex = 2; // Default to Dashboard (center)
+  int _localCacheVersion = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncChildrenToLocalDb();
+  }
+
+  Future<void> _syncChildrenToLocalDb() async {
+    try {
+      await AppParentDatabase().initialize();
+
+      final result = await AuthService().getChildren(
+        email: widget.email,
+        password: widget.password,
+      );
+
+      if (result['success'] != true) return;
+
+      final children = _extractChildren(result['data']);
+      await AppParentDatabase().upsertChildren(children);
+      await _syncUsageToLocalDb(children);
+    } catch (e) {
+      debugPrint('Failed to sync parent children to local DB: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _localCacheVersion++);
+      }
+    }
+  }
+
+  Future<void> _syncUsageToLocalDb(List<Map<String, dynamic>> children) async {
+    final childHashes = children
+        .map((child) => child['child_hash']?.toString().trim() ?? '')
+        .where((childHash) => childHash.isNotEmpty)
+        .toSet();
+
+    if (childHashes.isEmpty && widget.childHash.trim().isNotEmpty) {
+      childHashes.add(widget.childHash.trim());
+    }
+
+    for (final childHash in childHashes) {
+      final result = await AuthService().getChildUsage(
+        email: widget.email,
+        password: widget.password,
+        childHash: childHash,
+      );
+
+      if (result['success'] == true && result['data'] is Map) {
+        await AppParentDatabase().upsertChildUsage(
+          childHash: childHash,
+          usageData: Map<String, dynamic>.from(result['data'] as Map),
+        );
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> _extractChildren(dynamic data) {
+    final rawChildren = data is List
+        ? data
+        : data is Map
+        ? data['children']
+        : null;
+
+    if (rawChildren is! List) return [];
+
+    return rawChildren
+        .whereType<Map>()
+        .map((child) => Map<String, dynamic>.from(child))
+        .toList();
+  }
 
   // Placeholder screens for Parent
   List<Widget> get _screens => [
@@ -42,6 +115,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       email: widget.email,
       password: widget.password,
       childHash: widget.childHash,
+      localCacheVersion: _localCacheVersion,
     ),
     CommandCenterScreen(
       onBack: () {
@@ -63,6 +137,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       },
       onLogout: () async {
         await SessionService.clearParentSession();
+        await AppParentDatabase().clearChildren();
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const WelcomeScreen()),
@@ -80,7 +155,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       body: Stack(
         children: [
           _screens[_currentIndex],
-          
+
           // Custom Bottom Navigation
           Positioned(
             left: 0,
@@ -95,7 +170,6 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
               },
             ),
           ),
-          
         ],
       ),
     );
