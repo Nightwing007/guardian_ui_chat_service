@@ -24,6 +24,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
   String? _parentPassword;
   final AppParentDatabase _db = AppParentDatabase();
   final AuthService _auth = AuthService();
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -41,6 +42,52 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     if (_childHash != null) {
       await _loadTasks();
     }
+  }
+
+  Future<void> _refreshFromCloud() async {
+    if (_isRefreshing || _childHash == null || _parentEmail == null || _parentPassword == null) return;
+    
+    setState(() => _isRefreshing = true);
+    
+    // Fetch from cloud
+    final result = await _auth.getTasks(
+      email: _parentEmail!,
+      password: _parentPassword!,
+      childHash: _childHash!,
+    );
+    
+    if (result['success'] == true) {
+      final data = result['data'] as Map<String, dynamic>?;
+      final cloudTasks = data?['tasks'] as List<dynamic>?;
+      
+      if (cloudTasks != null) {
+        // Get existing to check duplicates
+        final existing = await _db.getTasks(childHash: _childHash!);
+        final existingIds = existing.where((t) => t['remote_id'] != null).map((t) => t['remote_id']).toSet();
+        
+        for (final task in cloudTasks) {
+          if (task is Map) {
+            final remoteId = task['id'] as int?;
+            if (remoteId != null && existingIds.contains(remoteId)) continue;
+            
+            // Cloud returns minutes, convert to seconds for local
+            final durationSeconds = (task['duration'] as int? ?? 0) * 60;
+            await _db.upsertTask(
+              childHash: _childHash!,
+              name: task['name'] ?? '',
+              category: task['category'] ?? 'Chore',
+              duration: durationSeconds,
+              remoteId: remoteId,
+              state: task['state'] ?? 'pending',
+              rewardPoints: task['reward_points'] ?? 3,
+            );
+          }
+        }
+      }
+    }
+    
+    await _loadTasks();
+    setState(() => _isRefreshing = false);
   }
 
 Future<void> _loadTasks() async {
@@ -103,261 +150,263 @@ Future<void> _loadTasks() async {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final Widget content = Column(
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 22),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Assign Task',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
                   GestureDetector(
-                    onTap: () async {
-                      final result = await showModalBottomSheet<Map<String, String>>(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (context) => Padding(
-                          padding: EdgeInsets.only(
-                            bottom: MediaQuery.of(context).viewInsets.bottom,
-                          ),
-                          child: const AddTaskBottomSheet(),
-                        ),
-                      );
-
-                      if (result != null) {
-                        final name = result['title']!;
-                        final durationStr = result['duration']!;
-                        
-                        int durationMinutes = 0;
-                        if (durationStr.contains('h')) {
-                          final parts = durationStr.split('h');
-                          durationMinutes = (int.tryParse(parts[0]) ?? 0) * 60;
-                          if (parts.length > 1 && parts[1].contains('m')) {
-                            durationMinutes += int.tryParse(parts[1].replaceAll('m', '').trim()) ?? 0;
-                          }
-                        } else if (durationStr.contains('m')) {
-                          durationMinutes = int.tryParse(durationStr.replaceAll('m', '').trim()) ?? 0;
-                        }
-
-                        if (_childHash != null) {
-                          // Save to local DB first and show immediately
-                          await _db.upsertTask(
-                            childHash: _childHash!,
-                            name: name,
-                            category: 'Chore',
-                            duration: durationMinutes * 60,
-                          );
-
-                          setState(() {
-                            _tasks.add({
-                              'title': name,
-                              'duration': result['duration'],
-                              'status': TaskStatus.notAccepted,
-                            });
-                          });
-
-                          // Post to cloud in background and update local with remote_id
-                          if (_parentEmail != null && _parentPassword != null) {
-                            final cloudResult = await _auth.createTask(
-                              email: _parentEmail!,
-                              password: _parentPassword!,
-                              childHash: _childHash!,
-                              name: name,
-                              category: 'chore',
-                              duration: durationMinutes,
-                              rewardPoints: 3,
-                            );
-                            if (cloudResult['success'] == true) {
-                              final task = cloudResult['task'] as Map<String, dynamic>?;
-                              final remoteId = task?['id'] as int?;
-                              if (remoteId != null) {
-                                await _db.updateTaskRemoteId(
-                                  childHash: _childHash!,
-                                  name: name,
-                                  remoteId: remoteId,
-                                );
-                              }
-                            }
-                          }
-
-                          // Reload to get updated list
-                          await _loadTasks();
-                        } else {
-                          setState(() {
-                            _tasks.add({
-                              'title': name,
-                              'duration': result['duration'],
-                              'status': TaskStatus.notAccepted,
-                            });
-                          });
-                        }
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.add, color: Colors.black, size: 20),
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Assign Task',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
-            ),
-
-            // Tasks List
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                itemCount: _tasks.length,
-                itemBuilder: (context, index) {
-                  final task = _tasks[index];
-                  final statusColor = _getStatusColor(task['status'] as TaskStatus);
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF222222), // Lighter dark grey
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      children: [
-                        // Status Circle Outline
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: statusColor, width: 2),
-                          ),
+              if (_isRefreshing)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+              else
+                GestureDetector(
+                  onTap: () async {
+                    final result = await showModalBottomSheet<Map<String, String>>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
                         ),
-                        const SizedBox(width: 16),
-                        
-                        // Task Info
-                        Expanded(
-                          child: Text(
-                            task['title'] as String,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        
-                        // Duration
-                        Text(
-                          task['duration'] as String,
-                          style: TextStyle(
-                            color: Colors.grey.shade400,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        
-                        // Edit Icon
-                        GestureDetector(
-                          onTap: () async {
-                            // Parse duration
-                            final durationStr = task['duration'] as String;
-                            int hours = 0;
-                            int minutes = 0;
-                            
-                            if (durationStr.contains('h')) {
-                              final parts = durationStr.split('h');
-                              hours = int.tryParse(parts[0]) ?? 0;
-                              if (parts.length > 1 && parts[1].contains('m')) {
-                                minutes = int.tryParse(parts[1].replaceAll('m', '').trim()) ?? 0;
-                              }
-                            } else if (durationStr.contains('m')) {
-                              minutes = int.tryParse(durationStr.replaceAll('m', '').trim()) ?? 0;
-                            }
+                        child: const AddTaskBottomSheet(),
+                      ),
+                    );
 
-                            final result = await showModalBottomSheet<Map<String, String>>(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) => Padding(
-                                padding: EdgeInsets.only(
-                                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                                ),
-                                child: AddTaskBottomSheet(
-                                  initialName: task['title'] as String,
-                                  initialDuration: Duration(hours: hours, minutes: minutes),
-                                ),
-                              ),
-                            );
+                    if (result != null) {
+                      final name = result['title']!;
+                      final durationStr = result['duration']!;
+                      
+                      int durationMinutes = 0;
+                      if (durationStr.contains('h')) {
+                        final parts = durationStr.split('h');
+                        durationMinutes = (int.tryParse(parts[0]) ?? 0) * 60;
+                        if (parts.length > 1 && parts[1].contains('m')) {
+                          durationMinutes += int.tryParse(parts[1].replaceAll('m', '').trim()) ?? 0;
+                        }
+                      } else if (durationStr.contains('m')) {
+                        durationMinutes = int.tryParse(durationStr.replaceAll('m', '').trim()) ?? 0;
+                      }
 
-                            if (result != null) {
-                              setState(() {
-                                _tasks[index]['title'] = result['title'];
-                                _tasks[index]['duration'] = result['duration'];
-                              });
-                            }
-                          },
-                          child: Icon(Icons.edit_outlined, color: Colors.grey.shade400, size: 20),
-                        ),
-                        const SizedBox(width: 16),
-                        
-                        // Delete Icon
-                        GestureDetector(
-                          onTap: () async {
-                            final localId = task['localId'] as int?;
-                            final remoteId = task['remote_id'] as int?;
+                      if (_childHash != null) {
+                        await _db.upsertTask(
+                          childHash: _childHash!,
+                          name: name,
+                          category: 'Chore',
+                          duration: durationMinutes * 60,
+                        );
 
-                            // Delete from local first
-                            if (localId != null) {
-                              await _db.deleteTask(localId: localId);
-                            }
+                        setState(() {
+                          _tasks.add({
+                            'title': name,
+                            'duration': result['duration'],
+                            'status': TaskStatus.notAccepted,
+                          });
+                        });
 
-                            // Remove from UI immediately
-                            setState(() {
-                              _tasks.removeAt(index);
-                            });
-
-                            // Then delete from cloud in background
-                            if (remoteId != null && _parentEmail != null && _parentPassword != null && _childHash != null) {
-                              await _auth.deleteTask(
-                                email: _parentEmail!,
-                                password: _parentPassword!,
+                        if (_parentEmail != null && _parentPassword != null) {
+                          final cloudResult = await _auth.createTask(
+                            email: _parentEmail!,
+                            password: _parentPassword!,
+                            childHash: _childHash!,
+                            name: name,
+                            category: 'chore',
+                            duration: durationMinutes,
+                            rewardPoints: 3,
+                          );
+                          if (cloudResult['success'] == true) {
+                            final task = cloudResult['task'] as Map<String, dynamic>?;
+                            final remoteId = task?['id'] as int?;
+                            if (remoteId != null) {
+                              await _db.updateTaskRemoteId(
                                 childHash: _childHash!,
-                                taskId: remoteId,
+                                name: name,
+                                remoteId: remoteId,
                               );
                             }
-                          },
-                          child: const Icon(Icons.delete_outline, color: Color(0xFFE80026), size: 20),
-                        ),
-                      ],
+                          }
+                        }
+
+                        await _loadTasks();
+                      } else {
+                        setState(() {
+                          _tasks.add({
+                            'title': name,
+                            'duration': result['duration'],
+                            'status': TaskStatus.notAccepted,
+                          });
+                        });
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
                     ),
-                  );
-                },
-              ),
-            ),
-          ],
+                    child: const Icon(Icons.add, color: Colors.black, size: 20),
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        // Tasks List
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            itemCount: _tasks.length,
+            itemBuilder: (context, index) {
+              final task = _tasks[index];
+              final statusColor = _getStatusColor(task['status'] as TaskStatus);
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222222),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: statusColor, width: 2),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    
+                    Expanded(
+                      child: Text(
+                        task['title'] as String,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    
+                    Text(
+                      task['duration'] as String,
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    
+                    GestureDetector(
+                      onTap: () async {
+                        final durationStr = task['duration'] as String;
+                        int hours = 0;
+                        int minutes = 0;
+                        
+                        if (durationStr.contains('h')) {
+                          final parts = durationStr.split('h');
+                          hours = int.tryParse(parts[0]) ?? 0;
+                          if (parts.length > 1 && parts[1].contains('m')) {
+                            minutes = int.tryParse(parts[1].replaceAll('m', '').trim()) ?? 0;
+                          }
+                        } else if (durationStr.contains('m')) {
+                          minutes = int.tryParse(durationStr.replaceAll('m', '').trim()) ?? 0;
+                        }
+
+                        final result = await showModalBottomSheet<Map<String, String>>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => Padding(
+                            padding: EdgeInsets.only(
+                              bottom: MediaQuery.of(context).viewInsets.bottom,
+                            ),
+                            child: AddTaskBottomSheet(
+                              initialName: task['title'] as String,
+                              initialDuration: Duration(hours: hours, minutes: minutes),
+                            ),
+                          ),
+                        );
+
+                        if (result != null) {
+                          setState(() {
+                            _tasks[index]['title'] = result['title'];
+                            _tasks[index]['duration'] = result['duration'];
+                          });
+                        }
+                      },
+                      child: Icon(Icons.edit_outlined, color: Colors.grey.shade400, size: 20),
+                    ),
+                    const SizedBox(width: 16),
+                    
+                    GestureDetector(
+                      onTap: () async {
+                        final localId = task['localId'] as int?;
+                        final remoteId = task['remote_id'] as int?;
+
+                        if (localId != null) {
+                          await _db.deleteTask(localId: localId);
+                        }
+
+                        setState(() {
+                          _tasks.removeAt(index);
+                        });
+
+                        if (remoteId != null && _parentEmail != null && _parentPassword != null && _childHash != null) {
+                          await _auth.deleteTask(
+                            email: _parentEmail!,
+                            password: _parentPassword!,
+                            childHash: _childHash!,
+                            taskId: remoteId,
+                          );
+                        }
+                      },
+                      child: const Icon(Icons.delete_outline, color: Color(0xFFE80026), size: 20),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+    
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBackground,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _refreshFromCloud,
+          color: Colors.white,
+          backgroundColor: AppColors.primaryGradientStart,
+          child: content,
         ),
       ),
     );

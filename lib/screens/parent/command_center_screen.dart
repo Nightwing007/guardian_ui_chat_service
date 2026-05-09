@@ -80,11 +80,14 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             
             if (exists) continue;
             
+            // Cloud returns duration in minutes, convert to seconds for local DB
+            final durationSeconds = (task['duration'] as int? ?? 0) * 60;
+            
             await _db.upsertTask(
               childHash: widget.childHash,
               name: task['name'] ?? '',
               category: task['category'] ?? 'Chore',
-              duration: task['duration'] ?? 0,
+              duration: durationSeconds,
               remoteId: incomingIdInt,
               state: task['state'] ?? 'pending',
               rewardPoints: task['reward_points'] ?? 3,
