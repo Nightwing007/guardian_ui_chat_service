@@ -487,7 +487,7 @@ class ChildData {
     int rewardPoints = 3,
   }) async {
     final now = DateTime.now().toIso8601String();
-    final timerTime = _formatDurationToTimerTime(duration);
+    final timerTime = _formatDurationMinutesToTimerTime(duration);
     await _db.insert('tasks', {
       'remote_id': remoteId,
       'name': name,
@@ -502,30 +502,43 @@ class ChildData {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  String _formatDurationToTimerTime(int seconds) {
-    if (seconds >= 3600) {
-      final hours = seconds ~/ 3600;
-      final mins = (seconds % 3600) ~/ 60;
+  String _formatDurationMinutesToTimerTime(int minutes) {
+    if (minutes >= 60) {
+      final hours = minutes ~/ 60;
+      final mins = minutes % 60;
       return '${hours}h${mins > 0 ? '${mins}m' : ''}';
     }
-    return '${seconds ~/ 60}m';
+    return '${minutes}m';
   }
 
   Future<void> syncCloudTasks(List<Map<String, dynamic>> cloudTasks) async {
     await _db.delete('tasks');
 
     for (final task in cloudTasks) {
-      final remoteId = task['id'] as int?;
-
       await upsertTask(
         name: task['name'] ?? '',
         category: task['category'] ?? 'Chore',
-        duration: task['duration'] ?? 0,
-        remoteId: remoteId,
+        duration: _asInt(task['duration']),
+        remoteId: _asNullableInt(task['id']),
         state: task['state'] ?? 'pending',
-        rewardPoints: task['reward_points'] ?? 3,
+        rewardPoints: _asInt(task['reward_points'], fallback: 3),
       );
     }
+  }
+
+  static int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  static int? _asNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   int completedTasksSync(List<TaskModel> tasks) =>

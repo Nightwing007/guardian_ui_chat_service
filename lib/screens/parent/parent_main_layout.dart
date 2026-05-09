@@ -223,30 +223,20 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
     final cloudTasks = data['tasks'] as List<dynamic>?;
     if (cloudTasks == null) return;
 
-    final existingTasks = await AppParentDatabase().getTasks(
-      childHash: trimmedChildHash,
-    );
-    final existingRemoteIds = existingTasks
-        .map((task) => _asNullableInt(task['remote_id']))
-        .whereType<int>()
-        .toSet();
+    await AppParentDatabase().clearTasks(childHash: trimmedChildHash);
 
     for (final task in cloudTasks.whereType<Map>()) {
       final remoteId = _asNullableInt(task['id']);
-      if (remoteId != null && existingRemoteIds.contains(remoteId)) continue;
 
       await AppParentDatabase().upsertTask(
         childHash: trimmedChildHash,
         name: task['name']?.toString() ?? '',
         category: task['category']?.toString() ?? 'Chore',
-        duration: (_asInt(task['duration'])) * 60,
+        duration: _asInt(task['duration']),
         remoteId: remoteId,
         state: task['state']?.toString() ?? 'pending',
         rewardPoints: _asInt(task['reward_points'], fallback: 3),
       );
-      if (remoteId != null) {
-        existingRemoteIds.add(remoteId);
-      }
     }
   }
 

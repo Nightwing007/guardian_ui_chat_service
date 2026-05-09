@@ -43,7 +43,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   'id': t.id,
                   'name': t.name,
                   'category': t.category,
-                  'duration': _parseDurationToSeconds(t.timerTime),
+                  'duration': _parseDurationToMinutes(t.timerTime),
                   'state': t.state.name,
                 },
               )
@@ -88,17 +88,17 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  int _parseDurationToSeconds(String timerTime) {
+  int _parseDurationToMinutes(String timerTime) {
     if (timerTime.contains('h')) {
       final parts = timerTime.split('h');
       final hours = int.tryParse(parts[0]) ?? 0;
       final mins = parts.length > 1
           ? (int.tryParse(parts[1].replaceAll('m', '')) ?? 0)
           : 0;
-      return (hours * 60 + mins) * 60;
+      return hours * 60 + mins;
     } else if (timerTime.contains('m')) {
       final mins = int.tryParse(timerTime.replaceAll('m', '')) ?? 0;
-      return mins * 60;
+      return mins;
     }
     return 0;
   }
@@ -147,13 +147,13 @@ class _TasksScreenState extends State<TasksScreen> {
       _tasks.where((t) => t['state'] == 'completed').length;
   int get _totalTasks => _tasks.length;
 
-  String _formatDuration(int seconds) {
-    if (seconds >= 3600) {
-      final hours = seconds ~/ 3600;
-      final mins = (seconds % 3600) ~/ 60;
+  String _formatDuration(int minutes) {
+    if (minutes >= 60) {
+      final hours = minutes ~/ 60;
+      final mins = minutes % 60;
       return '${hours}h${mins > 0 ? '${mins}m' : ''}';
     }
-    return '${seconds ~/ 60}m';
+    return '${minutes}m';
   }
 
   TaskState _parseTaskState(String state) {
@@ -210,7 +210,8 @@ class _TasksScreenState extends State<TasksScreen> {
               taskId: task['id'] as int,
               taskName: task['name'] as String,
               taskCategory: task['category'] as String,
-              timerTime: _formatDuration(task['duration'] as int),
+              timerTime: _formatDuration(_asInt(task['duration'])),
+              rewardPoints: _asInt(task['reward_points'], fallback: 3),
               gradientColors: AppColors
                   .allTaskGradients[index % AppColors.allTaskGradients.length],
               onAccepted: _onTaskAccepted,
@@ -359,5 +360,12 @@ class _TasksScreenState extends State<TasksScreen> {
         ],
       ),
     );
+  }
+
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
   }
 }

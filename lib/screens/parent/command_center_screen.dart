@@ -58,54 +58,38 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     if (result['success'] == true) {
       final data = result['data'] as Map<String, dynamic>?;
       final cloudTasks = data?['tasks'] as List<dynamic>?;
-      if (cloudTasks != null && cloudTasks.isNotEmpty) {
-        // Get existing tasks to check for duplicates
-        final existingTasks = await _db.getTasks(childHash: widget.childHash);
-
+      if (cloudTasks != null) {
+        await _db.clearTasks(childHash: widget.childHash);
         for (final task in cloudTasks) {
           if (task is Map) {
-            final incomingId = task['id'];
-            int? incomingIdInt;
-            if (incomingId is int) {
-              incomingIdInt = incomingId;
-            } else if (incomingId is String) {
-              incomingIdInt = int.tryParse(incomingId);
-            }
-
-            // Check if this task already exists in local DB by remote_id
-            bool exists = false;
-            for (final existing in existingTasks) {
-              final existingId = existing['remote_id'];
-              int? existingIdInt;
-              if (existingId is int) {
-                existingIdInt = existingId;
-              } else if (existingId is String) {
-                existingIdInt = int.tryParse(existingId);
-              }
-              if (incomingIdInt != null && incomingIdInt == existingIdInt) {
-                exists = true;
-                break;
-              }
-            }
-
-            if (exists) continue;
-
-            // Cloud returns duration in minutes, convert to seconds for local DB
-            final durationSeconds = (task['duration'] as int? ?? 0) * 60;
-
             await _db.upsertTask(
               childHash: widget.childHash,
               name: task['name'] ?? '',
               category: task['category'] ?? 'Chore',
-              duration: durationSeconds,
-              remoteId: incomingIdInt,
+              duration: _asInt(task['duration']),
+              remoteId: _asNullableInt(task['id']),
               state: task['state'] ?? 'pending',
-              rewardPoints: task['reward_points'] ?? 3,
+              rewardPoints: _asInt(task['reward_points'], fallback: 3),
             );
           }
         }
       }
     }
+  }
+
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  int? _asNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   @override

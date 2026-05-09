@@ -8,6 +8,7 @@ class TaskWidget extends StatefulWidget {
   final String taskName;
   final String taskCategory;
   final String timerTime;
+  final int rewardPoints;
   final List<Color> gradientColors;
   final Function(int taskId)? onAccepted;
   final Function(int taskId)? onCompleted;
@@ -19,6 +20,7 @@ class TaskWidget extends StatefulWidget {
     required this.taskName,
     required this.taskCategory,
     required this.timerTime,
+    required this.rewardPoints,
     required this.gradientColors,
     this.onAccepted,
     this.onCompleted,
@@ -27,22 +29,24 @@ class TaskWidget extends StatefulWidget {
 
   static Duration parseTimerTime(String timerTime) {
     final regex = RegExp(r'(\d+)([smh])');
-    final match = regex.firstMatch(timerTime);
-    if (match == null) return const Duration(seconds: 5);
+    var duration = Duration.zero;
 
-    final value = int.parse(match.group(1)!);
-    final unit = match.group(2);
-
-    switch (unit) {
-      case 's':
-        return Duration(seconds: value);
-      case 'm':
-        return Duration(minutes: value);
-      case 'h':
-        return Duration(hours: value);
-      default:
-        return const Duration(seconds: 5);
+    for (final match in regex.allMatches(timerTime)) {
+      final value = int.parse(match.group(1)!);
+      switch (match.group(2)) {
+        case 's':
+          duration += Duration(seconds: value);
+          break;
+        case 'm':
+          duration += Duration(minutes: value);
+          break;
+        case 'h':
+          duration += Duration(hours: value);
+          break;
+      }
     }
+
+    return duration == Duration.zero ? const Duration(seconds: 5) : duration;
   }
 
   @override
@@ -121,6 +125,8 @@ class _TaskWidgetState extends State<TaskWidget>
                 _buildLeadingIcon(),
                 const SizedBox(width: 16),
                 Expanded(child: _buildTextContent()),
+                _buildTaskMeta(),
+                const SizedBox(width: 10),
                 _buildActionButton(),
               ],
             ),
@@ -185,6 +191,40 @@ class _TaskWidgetState extends State<TaskWidget>
           style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textGrey),
         ),
       ],
+    );
+  }
+
+  Widget _buildTaskMeta() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            widget.timerTime,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${widget.rewardPoints} pts',
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textGrey,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

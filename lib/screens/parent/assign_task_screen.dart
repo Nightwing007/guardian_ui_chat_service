@@ -97,18 +97,14 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
         for (final task in cloudTasks) {
           if (task is Map) {
-            final remoteId = task['id'] as int?;
-
-            // Cloud returns minutes, convert to seconds for local
-            final durationSeconds = (task['duration'] as int? ?? 0) * 60;
             await _db.upsertTask(
               childHash: childHash,
               name: task['name'] ?? '',
               category: task['category'] ?? 'Chore',
-              duration: durationSeconds,
-              remoteId: remoteId,
+              duration: _asInt(task['duration']),
+              remoteId: _asNullableInt(task['id']),
               state: task['state'] ?? 'pending',
-              rewardPoints: task['reward_points'] ?? 3,
+              rewardPoints: _asInt(task['reward_points'], fallback: 3),
             );
           }
         }
@@ -159,11 +155,11 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     });
   }
 
-  String _formatDuration(int seconds) {
-    if (seconds >= 3600) {
-      return '${seconds ~/ 3600}h${seconds % 3600 > 0 ? '${(seconds % 3600) ~/ 60}m' : ''}';
+  String _formatDuration(int minutes) {
+    if (minutes >= 60) {
+      return '${minutes ~/ 60}h${minutes % 60 > 0 ? '${minutes % 60}m' : ''}';
     }
-    return '${seconds ~/ 60}m';
+    return '${minutes}m';
   }
 
   TaskStatus _mapState(String state) {
@@ -176,6 +172,21 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       default:
         return TaskStatus.notAccepted;
     }
+  }
+
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  int? _asNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   final List<Map<String, dynamic>> _tasks = [];
@@ -275,7 +286,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                           childHash: _childHash!,
                           name: name,
                           category: 'Chore',
-                          duration: durationMinutes * 60,
+                          duration: durationMinutes,
                         );
 
                         setState(() {
