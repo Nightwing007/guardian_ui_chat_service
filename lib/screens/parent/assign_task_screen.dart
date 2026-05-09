@@ -46,9 +46,21 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 Future<void> _loadTasks() async {
     if (_childHash == null) return;
     final tasks = await _db.getTasks(childHash: _childHash!);
+    
+    // Deduplicate by remote_id (prefer one with remote_id)
+    final Map<String, Map<String, dynamic>> seen = {};
+    for (final t in tasks) {
+      final remoteId = t['remote_id']?.toString();
+      final localId = t['id']?.toString();
+      final key = remoteId ?? localId ?? '';
+      if (key.isNotEmpty && !seen.containsKey(key)) {
+        seen[key] = t;
+      }
+    }
+    
     setState(() {
       _tasks.clear();
-      _tasks.addAll(tasks.map((t) => {
+      _tasks.addAll(seen.values.map((t) => {
         'title': t['name'],
         'duration': _formatDuration(t['duration'] as int),
         'status': _mapState(t['state'] as String),
@@ -149,9 +161,25 @@ Future<void> _loadTasks() async {
                         }
 
                         if (_childHash != null) {
-                          int? remoteId;
+                          // Save to local DB first and show immediately
+                          await _db.upsertTask(
+                            childHash: _childHash!,
+                            name: name,
+                            category: 'Chore',
+                            duration: durationMinutes * 60,
+                          );
+
+                          setState(() {
+                            _tasks.add({
+                              'title': name,
+                              'duration': result['duration'],
+                              'status': TaskStatus.notAccepted,
+                            });
+                          });
+
+                          // Post to cloud in background and update local with remote_id
                           if (_parentEmail != null && _parentPassword != null) {
-                            final result = await _auth.createTask(
+                            final cloudResult = await _auth.createTask(
                               email: _parentEmail!,
                               password: _parentPassword!,
                               childHash: _childHash!,
@@ -160,29 +188,29 @@ Future<void> _loadTasks() async {
                               duration: durationMinutes,
                               rewardPoints: 3,
                             );
-                            if (result['success'] == true) {
-                              final task = result['task'] as Map<String, dynamic>?;
-                              remoteId = task?['id'] as int?;
+                            if (cloudResult['success'] == true) {
+                              final task = cloudResult['task'] as Map<String, dynamic>?;
+                              final remoteId = task?['id'] as int?;
+                              if (remoteId != null) {
+                                await _db.updateTaskRemoteId(
+                                  childHash: _childHash!,
+                                  name: name,
+                                  remoteId: remoteId,
+                                );
+                              }
                             }
                           }
-                          await _db.upsertTask(
-                            childHash: _childHash!,
-                            name: name,
-                            category: 'Chore',
-                            duration: durationMinutes * 60,
-                            remoteId: remoteId,
-                          );
-                        }
 
-                        setState(() {
-                          _tasks.add({
-                            'title': name,
-                            'duration': result['duration'],
-                            'status': TaskStatus.notAccepted,
-                          });
-                        });
-                        if (_childHash != null) {
+                          // Reload to get updated list
                           await _loadTasks();
+                        } else {
+                          setState(() {
+                            _tasks.add({
+                              'title': name,
+                              'duration': result['duration'],
+                              'status': TaskStatus.notAccepted,
+                            });
+                          });
                         }
                       }
                     },
@@ -300,9 +328,18 @@ Future<void> _loadTasks() async {
                           onTap: () async {
                             final localId = task['localId'] as int?;
                             final remoteId = task['remote_id'] as int?;
+
+                            // Delete from local first
                             if (localId != null) {
                               await _db.deleteTask(localId: localId);
                             }
+
+                            // Remove from UI immediately
+                            setState(() {
+                              _tasks.removeAt(index);
+                            });
+
+                            // Then delete from cloud in background
                             if (remoteId != null && _parentEmail != null && _parentPassword != null && _childHash != null) {
                               await _auth.deleteTask(
                                 email: _parentEmail!,
@@ -311,9 +348,6 @@ Future<void> _loadTasks() async {
                                 taskId: remoteId,
                               );
                             }
-                            setState(() {
-                              _tasks.removeAt(index);
-                            });
                           },
                           child: const Icon(Icons.delete_outline, color: Color(0xFFE80026), size: 20),
                         ),

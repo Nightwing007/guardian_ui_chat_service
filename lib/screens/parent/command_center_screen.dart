@@ -47,16 +47,45 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
     if (result['success'] == true) {
       final data = result['data'] as Map<String, dynamic>?;
-      final tasks = data?['tasks'] as List<dynamic>?;
-      if (tasks != null) {
-        for (final task in tasks) {
+      final cloudTasks = data?['tasks'] as List<dynamic>?;
+      if (cloudTasks != null && cloudTasks.isNotEmpty) {
+        // Get existing tasks to check for duplicates
+        final existingTasks = await _db.getTasks(childHash: widget.childHash);
+        
+        for (final task in cloudTasks) {
           if (task is Map) {
+            final incomingId = task['id'];
+            int? incomingIdInt;
+            if (incomingId is int) {
+              incomingIdInt = incomingId;
+            } else if (incomingId is String) {
+              incomingIdInt = int.tryParse(incomingId);
+            }
+            
+            // Check if this task already exists in local DB by remote_id
+            bool exists = false;
+            for (final existing in existingTasks) {
+              final existingId = existing['remote_id'];
+              int? existingIdInt;
+              if (existingId is int) {
+                existingIdInt = existingId;
+              } else if (existingId is String) {
+                existingIdInt = int.tryParse(existingId);
+              }
+              if (incomingIdInt != null && incomingIdInt == existingIdInt) {
+                exists = true;
+                break;
+              }
+            }
+            
+            if (exists) continue;
+            
             await _db.upsertTask(
               childHash: widget.childHash,
               name: task['name'] ?? '',
               category: task['category'] ?? 'Chore',
               duration: task['duration'] ?? 0,
-              remoteId: task['id'],
+              remoteId: incomingIdInt,
               state: task['state'] ?? 'pending',
               rewardPoints: task['reward_points'] ?? 3,
             );

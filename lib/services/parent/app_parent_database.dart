@@ -533,6 +533,21 @@ class AppParentDatabase {
     );
   }
 
+  Future<void> updateTaskRemoteId({
+    required String childHash,
+    required String name,
+    required int remoteId,
+  }) async {
+    await initialize();
+    final now = DateTime.now().toIso8601String();
+    await _requireDb().update(
+      'tasks',
+      {'remote_id': remoteId, 'updated': now},
+      where: 'child_hash = ? AND name = ?',
+      whereArgs: [childHash.trim(), name],
+    );
+  }
+
   Future<void> deleteAppLimit({
     required String childHash,
     required String packageName,
