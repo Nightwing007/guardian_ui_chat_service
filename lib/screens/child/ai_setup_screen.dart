@@ -1,11 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:myapp/theme/app_colors.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:myapp/screens/child/main_layout.dart';
-import 'package:http/http.dart' as http;
 
 class AiModelSetupScreen extends StatefulWidget {
   const AiModelSetupScreen({super.key});
@@ -14,312 +11,333 @@ class AiModelSetupScreen extends StatefulWidget {
   State<AiModelSetupScreen> createState() => _AiModelSetupScreenState();
 }
 
-class _AiModelSetupScreenState extends State<AiModelSetupScreen> {
-  bool _isDownloading = false;
-  bool _isPickingFile = false;
-  double _downloadProgress = 0;
-  String? _selectedFilePath;
-  String _statusMessage = 'Setup your AI assistant to continue';
+enum SetupMode { none, downloading, importing, done, error }
 
-  // Placeholder URL for the model - in a real app, this would be a valid Gemma model URL
-  final String _modelDownloadUrl = 'https://example.com/gemma-2b-it-cpu-int4.bin';
+class _AiModelSetupScreenState extends State<AiModelSetupScreen>
+    with SingleTickerProviderStateMixin {
+  SetupMode _mode = SetupMode.none;
+  double _progress = 0;
+  String _statusMessage = '';
+  late AnimationController _pulseController;
 
-  Future<void> _pickModelFile() async {
-    if (_isPickingFile) return;
-    
-    setState(() {
-      _isPickingFile = true;
-    });
+  static const String _modelUrl =
+      'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm';
+  final String _hfToken = dotenv.env['HUGGINGFACE_TOKEN'] ?? '';
 
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any, // Allow any file type for model files
-      );
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
 
-      if (result != null) {
-        setState(() {
-          _selectedFilePath = result.files.single.path;
-          _statusMessage = 'Model file selected: ${result.files.single.name}';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _statusMessage = 'Error selecting file: $e';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPickingFile = false;
-        });
-      }
-    }
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   Future<void> _downloadModel() async {
     setState(() {
-      _isDownloading = true;
-      _downloadProgress = 0;
-      _statusMessage = 'Downloading AI Model...';
+      _mode = SetupMode.downloading;
+      _progress = 0;
+      _statusMessage = 'Connecting to HuggingFace...';
     });
 
     try {
-      // In a real implementation, we would use Dio or similar for better progress tracking
-      // and actually download the large model file.
-      // For this demonstration, we'll simulate a download.
-      
-      for (int i = 0; i <= 100; i += 5) {
-        await Future.delayed(const Duration(milliseconds: 200));
-        if (!mounted) return;
+      await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
+          .fromNetwork(_modelUrl, token: _hfToken)
+          .withProgress((progress) {
         setState(() {
-          _downloadProgress = i / 100;
+          _progress = progress / 100.0;
+          _statusMessage = 'Downloading... ${progress.toStringAsFixed(1)}%';
         });
-      }
+      }).install();
 
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = '${directory.path}/gemma_model.bin';
-      
-      // We would write the file here
-      // await File(filePath).writeAsBytes(response.bodyBytes);
-
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-          _selectedFilePath = filePath;
-          _statusMessage = 'Model downloaded successfully!';
-        });
-      }
+      _onSuccess();
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-          _statusMessage = 'Download failed: $e';
-        });
-      }
+      _onError(e.toString());
     }
   }
 
-  void _finishSetup() {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MainLayout(),
-      ),
-      (route) => false,
+  Future<void> _importModel() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      dialogTitle: 'Select Gemma 4 model (.task file)',
     );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final path = result.files.single.path;
+    if (path == null) return;
+
+    setState(() {
+      _mode = SetupMode.importing;
+      _progress = 0;
+      _statusMessage = 'Loading model from file...';
+    });
+
+    try {
+      await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
+          .fromFile(path)
+          .withProgress((progress) {
+        setState(() {
+          _progress = progress / 100.0;
+          _statusMessage = 'Installing... $progress%';
+        });
+      }).install();
+
+      _onSuccess();
+    } catch (e) {
+      _onError(e.toString());
+    }
   }
+
+  void _onSuccess() async {
+    setState(() {
+      _mode = SetupMode.done;
+      _progress = 1.0;
+      _statusMessage = 'Model ready!';
+    });
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const MainLayout(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
+    }
+  }
+
+  void _onError(String error) {
+    setState(() {
+      _mode = SetupMode.error;
+      _statusMessage = error;
+    });
+  }
+
+
+
+  bool get _isBusy =>
+      _mode == SetupMode.downloading || _mode == SetupMode.importing;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/bg-app.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          title: Text(
-            'AI Assistant Setup',
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // AI Icon / Illustration
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryPurple.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.accentBlue.withValues(alpha: 0.3),
-                      width: 2,
-                    ),
-                  ),
-                  child: Center(
-                    child: Image.asset(
-                      'assets/images/robohead.png',
-                      height: 80,
-                      width: 80,
-                    ),
-                  ),
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F1A),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              _buildHeader(),
+              const SizedBox(height: 40),
+              _buildModelInfo(),
+              const SizedBox(height: 32),
+              if (!_isBusy && _mode != SetupMode.done) ...[
+                _buildOptionCard(
+                  icon: Icons.download_rounded,
+                  title: 'Download Model',
+                  subtitle: 'Download Gemma 4 E2B IT directly\nfrom HuggingFace (~2.41 GB)',
+                  color: const Color(0xFF6C63FF),
+                  onTap: _downloadModel,
                 ),
-                const SizedBox(height: 32),
-                Text(
-                  'Guardian AI Brain',
-                  style: GoogleFonts.poppins(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _statusMessage,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: AppColors.textGrey,
-                  ),
-                ),
-                const SizedBox(height: 48),
-
-                if (_isDownloading) ...[
-                  // Progress indicator
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: _downloadProgress,
-                      minHeight: 12,
-                      backgroundColor: AppColors.cardBlueBackground,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentBlue),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '${(_downloadProgress * 100).toInt()}%',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.accentBlue,
-                    ),
-                  ),
-                ] else if (_selectedFilePath == null) ...[
-                  // Choice buttons
-                  _buildActionButton(
-                    title: 'Download Model',
-                    subtitle: 'Automatic setup (Recommended)',
-                    icon: Icons.cloud_download_outlined,
-                    onTap: _downloadModel,
-                    isPrimary: true,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildActionButton(
-                    title: 'Choose Model File',
-                    subtitle: 'Select a local .bin or .gguf file',
-                    icon: Icons.folder_open_outlined,
-                    onTap: _pickModelFile,
-                    isPrimary: false,
-                  ),
-                ] else ...[
-                  // Success state
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4ADE80).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF4ADE80).withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle, color: Color(0xFF4ADE80), size: 32),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'AI Ready!',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'Your assistant is prepared to help.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: AppColors.textGrey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _finishSetup,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryPurple,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Get Started',
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.white.withOpacity(0.1))),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'OR',
                         style: TextStyle(
-                          fontSize: 18,
+                          color: Colors.white.withOpacity(0.3),
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    Expanded(child: Divider(color: Colors.white.withOpacity(0.1))),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildOptionCard(
+                  icon: Icons.folder_open_rounded,
+                  title: 'Import from Device',
+                  subtitle: 'Select an existing .task file\nalready on your device',
+                  color: const Color(0xFF03DAC6),
+                  onTap: _importModel,
+                ),
               ],
-            ),
+              if (_isBusy) _buildProgressSection(),
+              if (_mode == SetupMode.error) _buildErrorSection(),
+              if (_mode == SetupMode.done) _buildSuccessSection(),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        AnimatedBuilder(
+          animation: _pulseController,
+          builder: (_, child) => Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6C63FF), Color(0xFF3D5AFE)],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6C63FF)
+                      .withOpacity(0.3 + _pulseController.value * 0.3),
+                  blurRadius: 20 + _pulseController.value * 10,
+                  spreadRadius: _pulseController.value * 3,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.shield_rounded, color: Colors.white, size: 30),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Guardian AI',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            Text(
+              'Model Setup',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white.withOpacity(0.5),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModelInfo() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6C63FF).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+                ),
+                child: const Text(
+                  'Gemma 4 E2B IT',
+                  style: TextStyle(
+                    color: Color(0xFF6C63FF),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF03DAC6).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF03DAC6).withOpacity(0.3)),
+                ),
+                child: const Text(
+                  '🖼️ Vision',
+                  style: TextStyle(
+                    color: Color(0xFF03DAC6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _modelStat(Icons.memory_rounded, 'Parameters', '5.1B total · 2.3B active'),
+          _modelStat(Icons.storage_rounded, 'File Size', '~2.41 GB (.litertlm format)'),
+          _modelStat(Icons.devices_rounded, 'Platform', 'Android · iOS · On-Device'),
+          _modelStat(Icons.visibility_rounded, 'Vision', 'Analyze images & screenshots'),
+        ],
+      ),
+    );
+  }
+
+  Widget _modelStat(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF6C63FF), size: 16),
+          const SizedBox(width: 10),
+          Text(
+            '$label: ',
+            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+          ),
+          Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionCard({
+    required IconData icon,
     required String title,
     required String subtitle,
-    required IconData icon,
+    required Color color,
     required VoidCallback onTap,
-    required bool isPrimary,
   }) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isPrimary ? AppColors.accentBlue.withValues(alpha: 0.1) : AppColors.cardBlueBackground,
+          color: color.withOpacity(0.07),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isPrimary ? AppColors.accentBlue.withValues(alpha: 0.4) : AppColors.surfaceOverlay,
-            width: 1,
-          ),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Row(
           children: [
             Container(
-              width: 50,
-              height: 50,
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isPrimary 
-                    ? AppColors.accentBlue.withValues(alpha: 0.2)
-                    : AppColors.primaryPurple.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                icon,
-                color: isPrimary ? AppColors.accentBlue : Colors.white,
-                size: 24,
-              ),
+              child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -328,28 +346,187 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen> {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.poppins(
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
                       fontSize: 12,
-                      color: AppColors.textGrey,
+                      height: 1.4,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: AppColors.textGrey,
-            ),
+            Icon(Icons.arrow_forward_ios_rounded, color: color, size: 16),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProgressSection() {
+    final isDownloading = _mode == SetupMode.downloading;
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Color(0xFF6C63FF),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    isDownloading ? 'Downloading Model' : 'Importing Model',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: _progress > 0 ? _progress : null,
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  color: const Color(0xFF6C63FF),
+                  minHeight: 8,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _statusMessage,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    '${(_progress * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(
+                      color: Color(0xFF6C63FF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              if (isDownloading) ...[
+                const SizedBox(height: 16),
+                Text(
+                  '💡 Keep the app open. Download will continue in the background.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 11,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorSection() {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF4D6D).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFFF4D6D).withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.error_outline, color: Color(0xFFFF4D6D), size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Error',
+                    style: TextStyle(
+                      color: Color(0xFFFF4D6D),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _statusMessage,
+                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _mode = SetupMode.none),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFFF4D6D),
+                    side: const BorderSide(color: Color(0xFFFF4D6D)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Try Again'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSuccessSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF03DAC6).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF03DAC6).withOpacity(0.4)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.check_circle_rounded, color: Color(0xFF03DAC6), size: 28),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Model loaded! Launching Guardian AI...',
+              style: TextStyle(color: Color(0xFF03DAC6), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
