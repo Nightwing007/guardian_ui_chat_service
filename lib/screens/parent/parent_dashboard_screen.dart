@@ -12,6 +12,7 @@ class ParentDashboardScreen extends StatelessWidget {
   final String email;
   final String password;
   final String childHash;
+  final String childName;
   final int localCacheVersion;
 
   const ParentDashboardScreen({
@@ -19,6 +20,7 @@ class ParentDashboardScreen extends StatelessWidget {
     required this.email,
     required this.password,
     required this.childHash,
+    required this.childName,
     this.localCacheVersion = 0,
   });
 
@@ -119,8 +121,8 @@ class ParentDashboardScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Arav\'s Dashboard',
+                    Text(
+                      '$childName\'s Dashboard',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,

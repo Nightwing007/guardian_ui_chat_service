@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
-import 'package:myapp/widgets/parent/create_child_account_bottom_sheet.dart';
-import 'package:myapp/screens/parent/connected_children_screen.dart';
-import 'package:myapp/services/session_service.dart';
-import 'package:myapp/screens/welcome_screen.dart';
+import 'package:myapp/screens/parent/children_screen.dart';
 
 class ParentProfileScreen extends StatefulWidget {
   final String email;
   final String password;
   final VoidCallback onBack;
   final VoidCallback onLogout;
+  final VoidCallback onChildrenChanged;
 
   const ParentProfileScreen({
     super.key,
@@ -18,6 +16,7 @@ class ParentProfileScreen extends StatefulWidget {
     required this.password,
     required this.onBack,
     required this.onLogout,
+    required this.onChildrenChanged,
   });
 
   @override
@@ -38,7 +37,11 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
               children: [
                 GestureDetector(
                   onTap: widget.onBack,
-                  child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 22),
+                  child: const Icon(
+                    Icons.arrow_back_ios,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -58,7 +61,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+                  colors: [
+                    AppColors.primaryGradientStart,
+                    AppColors.primaryGradientEnd,
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -69,7 +75,11 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
                   CircleAvatar(
                     radius: 35,
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    child: const Icon(Icons.person, color: Colors.white, size: 40),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 40,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -100,93 +110,35 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Menu Options
+            // Children Section
             Text(
-              'Account',
+              'Children',
               style: GoogleFonts.poppins(
                 color: AppColors.textGrey,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
-            ),
-            const SizedBox(height: 12),
-
-            _buildMenuItem(
-              icon: Icons.child_care,
-              title: 'Add Child Account',
-              subtitle: 'Link a new child device to monitor',
-              onTap: () async {
-                final result = await showModalBottomSheet<bool>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => CreateChildAccountBottomSheet(
-                    email: widget.email,
-                    password: widget.password,
-                  ),
-                );
-                if (result == true && mounted) {
-                  setState(() {});
-                }
-              },
             ),
             const SizedBox(height: 12),
 
             _buildMenuItem(
               icon: Icons.family_restroom,
-              title: 'Connected Children',
-              subtitle: 'View and manage linked child devices',
-              onTap: () {
-                Navigator.push(
+              title: 'Children',
+              subtitle: 'View and manage your children',
+              onTap: () async {
+                final changed = await Navigator.push<bool>(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ConnectedChildrenScreen(
+                    builder: (context) => ChildrenScreen(
                       email: widget.email,
                       password: widget.password,
-                      onBack: () => Navigator.pop(context),
+                      onBack: () => Navigator.pop(context, true),
                     ),
                   ),
                 );
-              },
-            ),
-            const SizedBox(height: 12),
-
-            _buildMenuItem(
-              icon: Icons.settings,
-              title: 'Settings',
-              subtitle: 'App preferences and notifications',
-              onTap: () {
-                // TODO: Navigate to settings
-              },
-            ),
-            const SizedBox(height: 32),
-
-            Text(
-              'Support',
-              style: GoogleFonts.poppins(
-                color: AppColors.textGrey,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            _buildMenuItem(
-              icon: Icons.help_outline,
-              title: 'Help & FAQ',
-              subtitle: 'Get answers to common questions',
-              onTap: () {
-                // TODO: Navigate to help
-              },
-            ),
-            const SizedBox(height: 12),
-
-            _buildMenuItem(
-              icon: Icons.info_outline,
-              title: 'About',
-              subtitle: 'App version and information',
-              onTap: () {
-                // TODO: Show about dialog
+                if (changed == true) {
+                  widget.onChildrenChanged();
+                }
               },
             ),
             const SizedBox(height: 32),

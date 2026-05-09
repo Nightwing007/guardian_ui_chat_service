@@ -4,6 +4,7 @@ import 'package:myapp/screens/parent/parent_signup_screen.dart';
 import 'package:myapp/screens/parent/parent_main_layout.dart';
 import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/session_service.dart';
+import 'package:myapp/services/parent/app_parent_database.dart';
 
 class ParentLoginScreen extends StatefulWidget {
   const ParentLoginScreen({super.key});
@@ -16,7 +17,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
   bool _keepMeSignedIn = true;
   bool _obscurePassword = true;
   bool _isLoading = false;
-  
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -55,10 +56,15 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
     if (result['success']) {
       final data = result['data'] as Map<String, dynamic>;
-      final children = data['children'] as List<dynamic>;
-      final childHash = children.isNotEmpty
-          ? (children[0] as Map<String, dynamic>)['child_hash'] as String
-          : '';
+      final children = (data['children'] as List<dynamic>? ?? [])
+          .whereType<Map>()
+          .map((child) => Map<String, dynamic>.from(child))
+          .toList();
+
+      final parentDb = AppParentDatabase();
+      await parentDb.upsertChildren(children);
+      final selectedChild = await parentDb.ensureSelectedChild();
+      final childHash = selectedChild?['child_hash']?.toString() ?? '';
 
       if (_keepMeSignedIn) {
         await SessionService.saveParentSession(
@@ -67,6 +73,8 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
           childHash: childHash,
         );
       }
+
+      if (!mounted) return;
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -81,10 +89,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
       );
     }
   }
@@ -119,7 +124,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                 ),
               ),
               const SizedBox(height: 48),
-              
+
               // Email Field Header
               Text(
                 'Email Address',
@@ -138,23 +143,31 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'hello@example.com',
-                    hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
                     filled: true,
                     fillColor: Colors.transparent,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: Colors.grey.shade800),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFF43229E)), // Match button roughly
+                      borderSide: const BorderSide(
+                        color: Color(0xFF43229E),
+                      ), // Match button roughly
                     ),
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Password Field Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -189,10 +202,16 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: '••••••••••••',
-                    hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
                     filled: true,
                     fillColor: Colors.transparent,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: Colors.grey.shade800),
@@ -203,7 +222,9 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                         color: Colors.grey.shade500,
                         size: 20,
                       ),
@@ -217,7 +238,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Keep me signed in
               Row(
                 children: [
@@ -229,7 +250,9 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                       activeColor: const Color(0xFF331682), // Dark purple
                       checkColor: Colors.white,
                       side: BorderSide(color: Colors.grey.shade600),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       onChanged: (value) {
                         setState(() {
                           _keepMeSignedIn = value ?? false;
@@ -240,15 +263,12 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                   const SizedBox(width: 12),
                   Text(
                     'Keep me signed in',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade300,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
                   ),
                 ],
               ),
               const SizedBox(height: 32),
-              
+
               // Login Button
               SizedBox(
                 width: double.infinity,
@@ -282,7 +302,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Or sign in with divider
               Row(
                 children: [
@@ -306,14 +326,18 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                 ],
               ),
               const SizedBox(height: 32),
-              
+
               // Google Button
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton.icon(
                   onPressed: () {},
-                  icon: const FaIcon(FontAwesomeIcons.google, color: Colors.white, size: 18),
+                  icon: const FaIcon(
+                    FontAwesomeIcons.google,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                   label: const Text(
                     'Continue with Google',
                     style: TextStyle(
@@ -332,14 +356,16 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Create Account Link
               Center(
                 child: GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ParentSignupScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const ParentSignupScreen(),
+                      ),
                     );
                   },
                   child: const Text(

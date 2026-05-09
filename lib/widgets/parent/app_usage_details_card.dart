@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/parent/app_parent_database.dart';
 import 'package:myapp/widgets/parent/app_usage_item.dart';
 
@@ -30,11 +31,22 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
     _loadUsage();
   }
 
+  @override
+  void didUpdateWidget(covariant AppUsageDetailsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.childHash != widget.childHash) {
+      _loadUsage();
+    }
+  }
+
   Future<void> _loadUsage() async {
-    if (widget.childHash.isEmpty) {
+    final childHash = widget.childHash.trim();
+    if (childHash.isEmpty) {
       setState(() {
         _isLoading = false;
         _error = 'No child account linked yet.';
+        _apps = [];
+        _totalMs = 0;
       });
       return;
     }
@@ -44,11 +56,22 @@ class _AppUsageDetailsCardState extends State<AppUsageDetailsCard> {
       _error = null;
     });
 
-    final data = await AppParentDatabase().getChildUsage(
-      childHash: widget.childHash,
+    final cloudResult = await AuthService().getChildUsage(
+      email: widget.email,
+      password: widget.password,
+      childHash: childHash,
     );
+    if (cloudResult['success'] == true && cloudResult['data'] is Map) {
+      await AppParentDatabase().upsertChildUsage(
+        childHash: childHash,
+        usageData: Map<String, dynamic>.from(cloudResult['data'] as Map),
+      );
+    }
+
+    final data = await AppParentDatabase().getChildUsage(childHash: childHash);
 
     if (!mounted) return;
+    if (childHash != widget.childHash.trim()) return;
 
     final apps = (data['apps'] as List<dynamic>).cast<Map<String, dynamic>>();
 

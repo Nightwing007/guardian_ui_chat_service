@@ -38,7 +38,17 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     _syncTasks();
   }
 
+  @override
+  void didUpdateWidget(covariant CommandCenterScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.childHash != widget.childHash) {
+      _syncTasks();
+    }
+  }
+
   Future<void> _syncTasks() async {
+    if (widget.childHash.trim().isEmpty) return;
+
     final result = await _auth.getTasks(
       email: widget.email,
       password: widget.password,
@@ -51,7 +61,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
       if (cloudTasks != null && cloudTasks.isNotEmpty) {
         // Get existing tasks to check for duplicates
         final existingTasks = await _db.getTasks(childHash: widget.childHash);
-        
+
         for (final task in cloudTasks) {
           if (task is Map) {
             final incomingId = task['id'];
@@ -61,7 +71,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
             } else if (incomingId is String) {
               incomingIdInt = int.tryParse(incomingId);
             }
-            
+
             // Check if this task already exists in local DB by remote_id
             bool exists = false;
             for (final existing in existingTasks) {
@@ -77,12 +87,12 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 break;
               }
             }
-            
+
             if (exists) continue;
-            
+
             // Cloud returns duration in minutes, convert to seconds for local DB
             final durationSeconds = (task['duration'] as int? ?? 0) * 60;
-            
+
             await _db.upsertTask(
               childHash: widget.childHash,
               name: task['name'] ?? '',
@@ -111,7 +121,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               children: [
                 GestureDetector(
                   onTap: widget.onBack,
-                  child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 22),
+                  child: const Icon(
+                    Icons.arrow_back_ios,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 const Text(
@@ -132,7 +146,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               children: [
                 const SizedBox(height: 12),
-                
+
                 const Text(
                   'Screen Time',
                   style: TextStyle(
@@ -142,50 +156,63 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Screen Time Card
                 _buildActionCard(
                   title: 'Screen Time',
                   subtitlePrefix: 'Daily Limit : ',
-                  subtitleHighlight: '${screenTimeLimit.inHours} hr ${screenTimeLimit.inMinutes % 60} mins',
-                  gradient: const [AppColors.primaryGradientEnd, AppColors.primaryGradientStart],
-                  trailing: _buildIconBtn(Icons.edit, onTap: () async {
-                    final newDuration = await showModalBottomSheet<Duration>(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => SetScreenTimeBottomSheet(
-                        initialDuration: screenTimeLimit,
-                      ),
-                    );
+                  subtitleHighlight:
+                      '${screenTimeLimit.inHours} hr ${screenTimeLimit.inMinutes % 60} mins',
+                  gradient: const [
+                    AppColors.primaryGradientEnd,
+                    AppColors.primaryGradientStart,
+                  ],
+                  trailing: _buildIconBtn(
+                    Icons.edit,
+                    onTap: () async {
+                      final newDuration = await showModalBottomSheet<Duration>(
+                        context: context,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => SetScreenTimeBottomSheet(
+                          initialDuration: screenTimeLimit,
+                        ),
+                      );
 
-                    if (newDuration != null) {
-                      setState(() {
-                        screenTimeLimit = newDuration;
-                      });
-                    }
-                  }),
+                      if (newDuration != null) {
+                        setState(() {
+                          screenTimeLimit = newDuration;
+                        });
+                      }
+                    },
+                  ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // App Timing Card
                 _buildActionCard(
                   title: 'App Timing',
                   subtitlePrefix: 'Set Time Limit For Apps',
-                  gradient: const [AppColors.primaryGradientEnd, AppColors.primaryGradientStart],
-                  trailing: _buildIconBtn(Icons.edit, onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SetAppTimingScreen(
-                          email: widget.email,
-                          password: widget.password,
-                          childHash: widget.childHash,
+                  gradient: const [
+                    AppColors.primaryGradientEnd,
+                    AppColors.primaryGradientStart,
+                  ],
+                  trailing: _buildIconBtn(
+                    Icons.edit,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SetAppTimingScreen(
+                            email: widget.email,
+                            password: widget.password,
+                            childHash: widget.childHash,
+                          ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    },
+                  ),
                 ),
-                
+
                 const SizedBox(height: 32),
                 const Text(
                   'Quick Actions',
@@ -196,11 +223,14 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Sleep Mode
                 _buildActionCard(
                   title: 'Sleep Mode',
-                  gradient: const [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
+                  gradient: const [
+                    AppColors.tertiaryGradientStart,
+                    AppColors.tertiaryGradientEnd,
+                  ],
                   trailing: _buildToggleSwitch(
                     value: isSleepModeOn,
                     onChanged: (val) {
@@ -215,7 +245,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 // Exam Mode
                 _buildActionCard(
                   title: 'Exam Mode',
-                  gradient: const [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
+                  gradient: const [
+                    AppColors.tertiaryGradientStart,
+                    AppColors.tertiaryGradientEnd,
+                  ],
                   trailing: _buildToggleSwitch(
                     value: isExamModeOn,
                     onChanged: (val) {
@@ -230,14 +263,24 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 // Block Apps & Sites
                 _buildActionCard(
                   title: 'Block Apps & Sites',
-                  subtitlePrefix: 'Block Specific Apps & Sites\nFrom your child',
-                  gradient: const [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
-                  trailing: _buildIconBtn(Icons.arrow_forward_ios, size: 14, onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const BlockedAppsSitesScreen()),
-                    );
-                  }),
+                  subtitlePrefix:
+                      'Block Specific Apps & Sites\nFrom your child',
+                  gradient: const [
+                    AppColors.tertiaryGradientStart,
+                    AppColors.tertiaryGradientEnd,
+                  ],
+                  trailing: _buildIconBtn(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BlockedAppsSitesScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -245,15 +288,28 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 _buildActionCard(
                   title: 'Tasks',
                   subtitlePrefix: 'View and Assign tasks to child',
-                  gradient: const [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
-                  trailing: _buildIconBtn(Icons.arrow_forward_ios, size: 14, onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => AssignTaskScreen()),
-                    );
-                  }),
+                  gradient: const [
+                    AppColors.tertiaryGradientStart,
+                    AppColors.tertiaryGradientEnd,
+                  ],
+                  trailing: _buildIconBtn(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AssignTaskScreen(
+                            email: widget.email,
+                            password: widget.password,
+                            childHash: widget.childHash,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-                
+
                 const SizedBox(height: 100), // Padding for bottom nav
               ],
             ),
@@ -303,12 +359,19 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                       children: [
                         TextSpan(
                           text: subtitlePrefix,
-                          style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.grey.shade300,
+                            fontSize: 12,
+                          ),
                         ),
                         if (subtitleHighlight != null)
                           TextSpan(
                             text: subtitleHighlight,
-                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                       ],
                     ),
@@ -323,7 +386,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     );
   }
 
-  Widget _buildIconBtn(IconData icon, {required VoidCallback onTap, double size = 18}) {
+  Widget _buildIconBtn(
+    IconData icon, {
+    required VoidCallback onTap,
+    double size = 18,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -338,7 +405,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     );
   }
 
-  Widget _buildToggleSwitch({required bool value, required ValueChanged<bool> onChanged}) {
+  Widget _buildToggleSwitch({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: Container(

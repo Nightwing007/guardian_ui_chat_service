@@ -18,7 +18,7 @@ class AppParentDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai_parent.db');
     _db = await openDatabase(
       dbPath,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -43,6 +43,7 @@ class AppParentDatabase {
     await _createInstalledAppsTable(db);
     await _createAppLimitsTable(db);
     await _createTasksTable(db);
+    await _createSelectedChildTable(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -57,6 +58,9 @@ class AppParentDatabase {
     }
     if (oldVersion < 5) {
       await _createTasksTable(db);
+    }
+    if (oldVersion < 6) {
+      await _createSelectedChildTable(db);
     }
   }
 
@@ -129,6 +133,21 @@ class AppParentDatabase {
     ''');
   }
 
+  Future<void> _createSelectedChildTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS selected_child (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        child_hash TEXT NOT NULL,
+        first_name TEXT,
+        last_name TEXT,
+        date_of_birth TEXT,
+        is_paired INTEGER NOT NULL DEFAULT 0,
+        raw_json TEXT NOT NULL,
+        selected_at TEXT NOT NULL
+      )
+    ''');
+  }
+
   Future<void> upsertChildren(List<Map<String, dynamic>> children) async {
     await initialize();
     final db = _requireDb();
@@ -182,6 +201,87 @@ class AppParentDatabase {
         'is_paired': row['is_paired'] == 1,
       };
     }).toList();
+  }
+
+  Future<void> selectChild(Map<String, dynamic> child) async {
+    await initialize();
+    final childHash = child['child_hash']?.toString().trim() ?? '';
+    if (childHash.isEmpty) return;
+
+    final selectedAt = DateTime.now().toIso8601String();
+    await _requireDb().insert('selected_child', {
+      'id': 1,
+      'child_hash': childHash,
+      'first_name': child['first_name']?.toString(),
+      'last_name': child['last_name']?.toString(),
+      'date_of_birth': child['date_of_birth']?.toString(),
+      'is_paired': child['is_paired'] == true ? 1 : 0,
+      'raw_json': jsonEncode(child),
+      'selected_at': selectedAt,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<Map<String, dynamic>?> getSelectedChild() async {
+    await initialize();
+    final rows = await _requireDb().query(
+      'selected_child',
+      where: 'id = 1',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+
+    final row = rows.first;
+    final rawJson = row['raw_json'] as String?;
+    if (rawJson != null && rawJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawJson);
+        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        // Fall back to normalized columns below.
+      }
+    }
+
+    return {
+      'child_hash': row['child_hash'],
+      'first_name': row['first_name'],
+      'last_name': row['last_name'],
+      'date_of_birth': row['date_of_birth'],
+      'is_paired': row['is_paired'] == 1,
+    };
+  }
+
+  Future<Map<String, dynamic>?> ensureSelectedChild({
+    String? preferredChildHash,
+  }) async {
+    await initialize();
+    final children = await getChildren();
+    if (children.isEmpty) {
+      await _requireDb().delete('selected_child');
+      return null;
+    }
+
+    final selected = await getSelectedChild();
+    final selectedHash = selected?['child_hash']?.toString();
+    final stillExists = children.any(
+      (child) => child['child_hash']?.toString() == selectedHash,
+    );
+    if (stillExists) return selected;
+
+    final preferredHash = preferredChildHash?.trim();
+    Map<String, dynamic>? preferred;
+    if (preferredHash != null && preferredHash.isNotEmpty) {
+      for (final child in children) {
+        if (child['child_hash']?.toString() == preferredHash) {
+          preferred = child;
+          break;
+        }
+      }
+    }
+
+    final fallback = preferred ?? children.first;
+    await selectChild(fallback);
+    return fallback;
   }
 
   Future<void> upsertChildUsage({
@@ -416,19 +516,17 @@ class AppParentDatabase {
     if (trimmedPackage.isEmpty) return;
 
     try {
-      await _requireDb().insert(
-        'app_limits',
-        {
-          'child_hash': trimmedChildHash,
-          'package_name': trimmedPackage,
-          'remote_id': remoteId,
-          'cloud_limit_id': cloudLimitId,
-          'limit_minutes': limitMinutes,
-          'created_at': DateTime.now().toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
+      await _requireDb().insert('app_limits', {
+        'child_hash': trimmedChildHash,
+        'package_name': trimmedPackage,
+        'remote_id': remoteId,
+        'cloud_limit_id': cloudLimitId,
+        'limit_minutes': limitMinutes,
+        'created_at': DateTime.now().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      print(
+        'upsertAppLimit: Inserted for $trimmedPackage with $limitMinutes minutes',
       );
-      print('upsertAppLimit: Inserted for $trimmedPackage with $limitMinutes minutes');
     } catch (e) {
       print('upsertAppLimit error: $e');
     }
@@ -447,12 +545,16 @@ class AppParentDatabase {
       whereArgs: [trimmedChildHash],
     );
 
-    return rows.map((row) => {
-      'package_name': row['package_name'],
-      'remote_id': row['remote_id'],
-      'cloud_limit_id': row['cloud_limit_id'],
-      'limit_minutes': row['limit_minutes'],
-    }).toList();
+    return rows
+        .map(
+          (row) => {
+            'package_name': row['package_name'],
+            'remote_id': row['remote_id'],
+            'cloud_limit_id': row['cloud_limit_id'],
+            'limit_minutes': row['limit_minutes'],
+          },
+        )
+        .toList();
   }
 
   Future<Map<String, dynamic>> upsertTask({
@@ -472,23 +574,19 @@ class AppParentDatabase {
 
     final now = DateTime.now().toIso8601String();
     try {
-      await _requireDb().insert(
-        'tasks',
-        {
-          'remote_id': remoteId,
-          'name': name,
-          'category': category,
-          'duration': duration,
-          'state': state,
-          'reward_points': rewardPoints,
-          'completed_at': null,
-          'created': now,
-          'updated': now,
-          'child_hash': trimmedChildHash,
-          'guardian_id': null,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await _requireDb().insert('tasks', {
+        'remote_id': remoteId,
+        'name': name,
+        'category': category,
+        'duration': duration,
+        'state': state,
+        'reward_points': rewardPoints,
+        'completed_at': null,
+        'created': now,
+        'updated': now,
+        'child_hash': trimmedChildHash,
+        'guardian_id': null,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
       return {'success': true};
     } catch (e) {
       print('upsertTask error: $e');
@@ -496,7 +594,9 @@ class AppParentDatabase {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTasks({required String childHash}) async {
+  Future<List<Map<String, dynamic>>> getTasks({
+    required String childHash,
+  }) async {
     await initialize();
     final trimmedChildHash = childHash.trim();
     if (trimmedChildHash.isEmpty) return [];
@@ -508,29 +608,29 @@ class AppParentDatabase {
       orderBy: 'created DESC',
     );
 
-    return rows.map((row) => {
-      'id': row['id'],
-      'remote_id': row['remote_id'],
-      'name': row['name'],
-      'category': row['category'],
-      'duration': row['duration'],
-      'state': row['state'],
-      'reward_points': row['reward_points'],
-      'completed_at': row['completed_at'],
-      'created': row['created'],
-      'updated': row['updated'],
-      'child_hash': row['child_hash'],
-      'guardian_id': row['guardian_id'],
-    }).toList();
+    return rows
+        .map(
+          (row) => {
+            'id': row['id'],
+            'remote_id': row['remote_id'],
+            'name': row['name'],
+            'category': row['category'],
+            'duration': row['duration'],
+            'state': row['state'],
+            'reward_points': row['reward_points'],
+            'completed_at': row['completed_at'],
+            'created': row['created'],
+            'updated': row['updated'],
+            'child_hash': row['child_hash'],
+            'guardian_id': row['guardian_id'],
+          },
+        )
+        .toList();
   }
 
   Future<void> deleteTask({required int localId}) async {
     await initialize();
-    await _requireDb().delete(
-      'tasks',
-      where: 'id = ?',
-      whereArgs: [localId],
-    );
+    await _requireDb().delete('tasks', where: 'id = ?', whereArgs: [localId]);
   }
 
   Future<void> updateTaskRemoteId({
@@ -568,6 +668,7 @@ class AppParentDatabase {
     await initialize();
     await _requireDb().delete('installed_apps');
     await _requireDb().delete('app_usage');
+    await _requireDb().delete('selected_child');
     await _requireDb().delete('child');
   }
 

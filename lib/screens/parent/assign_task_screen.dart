@@ -12,7 +12,16 @@ enum TaskStatus {
 }
 
 class AssignTaskScreen extends StatefulWidget {
-  const AssignTaskScreen({super.key});
+  final String? email;
+  final String? password;
+  final String? childHash;
+
+  const AssignTaskScreen({
+    super.key,
+    this.email,
+    this.password,
+    this.childHash,
+  });
 
   @override
   State<AssignTaskScreen> createState() => _AssignTaskScreenState();
@@ -32,48 +41,74 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     _loadSession();
   }
 
+  @override
+  void didUpdateWidget(covariant AssignTaskScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.childHash != widget.childHash) {
+      _loadSession();
+    }
+  }
+
   Future<void> _loadSession() async {
     final session = await SessionService.getParentSession();
+    final selectedChild = await _db.getSelectedChild();
+    final childHash =
+        widget.childHash ??
+        selectedChild?['child_hash']?.toString() ??
+        session['childHash'];
+
+    if (!mounted) return;
+
     setState(() {
-      _childHash = session['childHash'];
-      _parentEmail = session['email'];
-      _parentPassword = session['password'];
+      _childHash = childHash;
+      _parentEmail = widget.email ?? session['email'];
+      _parentPassword = widget.password ?? session['password'];
+      _tasks.clear();
     });
-    if (_childHash != null) {
+    if (childHash != null && childHash.trim().isNotEmpty) {
       await _loadTasks();
     }
   }
 
   Future<void> _refreshFromCloud() async {
-    if (_isRefreshing || _childHash == null || _parentEmail == null || _parentPassword == null) return;
-    
+    if (_isRefreshing ||
+        _childHash == null ||
+        _parentEmail == null ||
+        _parentPassword == null) {
+      return;
+    }
+
     setState(() => _isRefreshing = true);
-    
+
     // Fetch from cloud
+    final childHash = _childHash!.trim();
     final result = await _auth.getTasks(
       email: _parentEmail!,
       password: _parentPassword!,
-      childHash: _childHash!,
+      childHash: childHash,
     );
-    
+
     if (result['success'] == true) {
       final data = result['data'] as Map<String, dynamic>?;
       final cloudTasks = data?['tasks'] as List<dynamic>?;
-      
+
       if (cloudTasks != null) {
         // Get existing to check duplicates
-        final existing = await _db.getTasks(childHash: _childHash!);
-        final existingIds = existing.where((t) => t['remote_id'] != null).map((t) => t['remote_id']).toSet();
-        
+        final existing = await _db.getTasks(childHash: childHash);
+        final existingIds = existing
+            .where((t) => t['remote_id'] != null)
+            .map((t) => t['remote_id'])
+            .toSet();
+
         for (final task in cloudTasks) {
           if (task is Map) {
             final remoteId = task['id'] as int?;
             if (remoteId != null && existingIds.contains(remoteId)) continue;
-            
+
             // Cloud returns minutes, convert to seconds for local
             final durationSeconds = (task['duration'] as int? ?? 0) * 60;
             await _db.upsertTask(
-              childHash: _childHash!,
+              childHash: childHash,
               name: task['name'] ?? '',
               category: task['category'] ?? 'Chore',
               duration: durationSeconds,
@@ -85,15 +120,24 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         }
       }
     }
-    
+
     await _loadTasks();
-    setState(() => _isRefreshing = false);
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
   }
 
-Future<void> _loadTasks() async {
-    if (_childHash == null) return;
-    final tasks = await _db.getTasks(childHash: _childHash!);
-    
+  Future<void> _loadTasks() async {
+    final childHash = _childHash?.trim() ?? '';
+    if (childHash.isEmpty) {
+      setState(() => _tasks.clear());
+      return;
+    }
+
+    final tasks = await _db.getTasks(childHash: childHash);
+    if (!mounted) return;
+    if (childHash != (_childHash?.trim() ?? '')) return;
+
     // Deduplicate by remote_id (prefer one with remote_id)
     final Map<String, Map<String, dynamic>> seen = {};
     for (final t in tasks) {
@@ -104,16 +148,20 @@ Future<void> _loadTasks() async {
         seen[key] = t;
       }
     }
-    
+
     setState(() {
       _tasks.clear();
-      _tasks.addAll(seen.values.map((t) => {
-        'title': t['name'],
-        'duration': _formatDuration(t['duration'] as int),
-        'status': _mapState(t['state'] as String),
-        'localId': t['id'],
-        'remote_id': t['remote_id'],
-      }));
+      _tasks.addAll(
+        seen.values.map(
+          (t) => {
+            'title': t['name'],
+            'duration': _formatDuration(t['duration'] as int),
+            'status': _mapState(t['state'] as String),
+            'localId': t['id'],
+            'remote_id': t['remote_id'],
+          },
+        ),
+      );
     });
   }
 
@@ -135,7 +183,7 @@ Future<void> _loadTasks() async {
     }
   }
 
-  List<Map<String, dynamic>> _tasks = [];
+  final List<Map<String, dynamic>> _tasks = [];
 
   Color _getStatusColor(TaskStatus status) {
     switch (status) {
@@ -162,7 +210,11 @@ Future<void> _loadTasks() async {
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 22),
+                    child: const Icon(
+                      Icons.arrow_back_ios,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   const Text(
@@ -179,36 +231,48 @@ Future<void> _loadTasks() async {
                 const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
                 )
               else
                 GestureDetector(
                   onTap: () async {
-                    final result = await showModalBottomSheet<Map<String, String>>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
-                        ),
-                        child: const AddTaskBottomSheet(),
-                      ),
-                    );
+                    final result =
+                        await showModalBottomSheet<Map<String, String>>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => Padding(
+                            padding: EdgeInsets.only(
+                              bottom: MediaQuery.of(context).viewInsets.bottom,
+                            ),
+                            child: const AddTaskBottomSheet(),
+                          ),
+                        );
 
                     if (result != null) {
                       final name = result['title']!;
                       final durationStr = result['duration']!;
-                      
+
                       int durationMinutes = 0;
                       if (durationStr.contains('h')) {
                         final parts = durationStr.split('h');
                         durationMinutes = (int.tryParse(parts[0]) ?? 0) * 60;
                         if (parts.length > 1 && parts[1].contains('m')) {
-                          durationMinutes += int.tryParse(parts[1].replaceAll('m', '').trim()) ?? 0;
+                          durationMinutes +=
+                              int.tryParse(
+                                parts[1].replaceAll('m', '').trim(),
+                              ) ??
+                              0;
                         }
                       } else if (durationStr.contains('m')) {
-                        durationMinutes = int.tryParse(durationStr.replaceAll('m', '').trim()) ?? 0;
+                        durationMinutes =
+                            int.tryParse(
+                              durationStr.replaceAll('m', '').trim(),
+                            ) ??
+                            0;
                       }
 
                       if (_childHash != null) {
@@ -238,7 +302,8 @@ Future<void> _loadTasks() async {
                             rewardPoints: 3,
                           );
                           if (cloudResult['success'] == true) {
-                            final task = cloudResult['task'] as Map<String, dynamic>?;
+                            final task =
+                                cloudResult['task'] as Map<String, dynamic>?;
                             final remoteId = task?['id'] as int?;
                             if (remoteId != null) {
                               await _db.updateTaskRemoteId(
@@ -286,7 +351,10 @@ Future<void> _loadTasks() async {
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 20,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF222222),
                   borderRadius: BorderRadius.circular(20),
@@ -302,7 +370,7 @@ Future<void> _loadTasks() async {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     Expanded(
                       child: Text(
                         task['title'] as String,
@@ -313,7 +381,7 @@ Future<void> _loadTasks() async {
                         ),
                       ),
                     ),
-                    
+
                     Text(
                       task['duration'] as String,
                       style: TextStyle(
@@ -323,37 +391,51 @@ Future<void> _loadTasks() async {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     GestureDetector(
                       onTap: () async {
                         final durationStr = task['duration'] as String;
                         int hours = 0;
                         int minutes = 0;
-                        
+
                         if (durationStr.contains('h')) {
                           final parts = durationStr.split('h');
                           hours = int.tryParse(parts[0]) ?? 0;
                           if (parts.length > 1 && parts[1].contains('m')) {
-                            minutes = int.tryParse(parts[1].replaceAll('m', '').trim()) ?? 0;
+                            minutes =
+                                int.tryParse(
+                                  parts[1].replaceAll('m', '').trim(),
+                                ) ??
+                                0;
                           }
                         } else if (durationStr.contains('m')) {
-                          minutes = int.tryParse(durationStr.replaceAll('m', '').trim()) ?? 0;
+                          minutes =
+                              int.tryParse(
+                                durationStr.replaceAll('m', '').trim(),
+                              ) ??
+                              0;
                         }
 
-                        final result = await showModalBottomSheet<Map<String, String>>(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (context) => Padding(
-                            padding: EdgeInsets.only(
-                              bottom: MediaQuery.of(context).viewInsets.bottom,
-                            ),
-                            child: AddTaskBottomSheet(
-                              initialName: task['title'] as String,
-                              initialDuration: Duration(hours: hours, minutes: minutes),
-                            ),
-                          ),
-                        );
+                        final result =
+                            await showModalBottomSheet<Map<String, String>>(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (context) => Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: MediaQuery.of(
+                                    context,
+                                  ).viewInsets.bottom,
+                                ),
+                                child: AddTaskBottomSheet(
+                                  initialName: task['title'] as String,
+                                  initialDuration: Duration(
+                                    hours: hours,
+                                    minutes: minutes,
+                                  ),
+                                ),
+                              ),
+                            );
 
                         if (result != null) {
                           setState(() {
@@ -362,10 +444,14 @@ Future<void> _loadTasks() async {
                           });
                         }
                       },
-                      child: Icon(Icons.edit_outlined, color: Colors.grey.shade400, size: 20),
+                      child: Icon(
+                        Icons.edit_outlined,
+                        color: Colors.grey.shade400,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     GestureDetector(
                       onTap: () async {
                         final localId = task['localId'] as int?;
@@ -379,7 +465,10 @@ Future<void> _loadTasks() async {
                           _tasks.removeAt(index);
                         });
 
-                        if (remoteId != null && _parentEmail != null && _parentPassword != null && _childHash != null) {
+                        if (remoteId != null &&
+                            _parentEmail != null &&
+                            _parentPassword != null &&
+                            _childHash != null) {
                           await _auth.deleteTask(
                             email: _parentEmail!,
                             password: _parentPassword!,
@@ -388,7 +477,11 @@ Future<void> _loadTasks() async {
                           );
                         }
                       },
-                      child: const Icon(Icons.delete_outline, color: Color(0xFFE80026), size: 20),
+                      child: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFE80026),
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -398,7 +491,7 @@ Future<void> _loadTasks() async {
         ),
       ],
     );
-    
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       body: SafeArea(

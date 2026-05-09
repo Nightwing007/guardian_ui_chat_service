@@ -37,6 +37,14 @@ class SessionService {
     };
   }
 
+  static Future<void> updateParentSelectedChild(String childHash) async {
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_childHashKey, trimmedChildHash);
+  }
+
   static Future<void> clearParentSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_parentEmailKey);
