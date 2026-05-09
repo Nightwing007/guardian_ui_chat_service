@@ -263,7 +263,12 @@ class AppDatabase {
       // Just ensure the tasks table has new columns
       await _addColumnIfMissing(db, 'tasks', 'remote_id', 'INTEGER');
       await _addColumnIfMissing(db, 'tasks', 'duration', 'INTEGER DEFAULT 0');
-      await _addColumnIfMissing(db, 'tasks', 'reward_points', 'INTEGER DEFAULT 0');
+      await _addColumnIfMissing(
+        db,
+        'tasks',
+        'reward_points',
+        'INTEGER DEFAULT 0',
+      );
       await _addColumnIfMissing(db, 'tasks', 'completed_at', 'TEXT');
       await _addColumnIfMissing(db, 'tasks', 'created', 'TEXT');
       await _addColumnIfMissing(db, 'tasks', 'updated', 'TEXT');
@@ -467,7 +472,7 @@ class ChildData {
   Future<void> updateTaskState(int taskId, TaskState state) async {
     await _db.update(
       'tasks',
-      {'state': state.name},
+      {'state': _taskStateToStorageValue(state)},
       where: 'id = ?',
       whereArgs: [taskId],
     );
@@ -483,22 +488,18 @@ class ChildData {
   }) async {
     final now = DateTime.now().toIso8601String();
     final timerTime = _formatDurationToTimerTime(duration);
-    await _db.insert(
-      'tasks',
-      {
-        'remote_id': remoteId,
-        'name': name,
-        'category': category,
-        'timer_time': timerTime,
-        'duration': duration,
-        'state': state,
-        'reward_points': rewardPoints,
-        'completed_at': null,
-        'created': now,
-        'updated': now,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _db.insert('tasks', {
+      'remote_id': remoteId,
+      'name': name,
+      'category': category,
+      'timer_time': timerTime,
+      'duration': duration,
+      'state': state,
+      'reward_points': rewardPoints,
+      'completed_at': null,
+      'created': now,
+      'updated': now,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   String _formatDurationToTimerTime(int seconds) {
@@ -511,18 +512,11 @@ class ChildData {
   }
 
   Future<void> syncCloudTasks(List<Map<String, dynamic>> cloudTasks) async {
-    if (cloudTasks.isEmpty) return;
-    
-    final existingTasks = await getTasks();
-    final existingIds = existingTasks
-        .where((t) => t['remote_id'] != null)
-        .map((t) => t['remote_id'] as int)
-        .toSet();
-    
+    await _db.delete('tasks');
+
     for (final task in cloudTasks) {
       final remoteId = task['id'] as int?;
-      if (remoteId != null && existingIds.contains(remoteId)) continue;
-      
+
       await upsertTask(
         name: task['name'] ?? '',
         category: task['category'] ?? 'Chore',
@@ -541,10 +535,26 @@ class ChildData {
     switch (state) {
       case 'accepted':
         return TaskState.accepted;
+      case 'in_progress':
+      case 'inProgress':
+        return TaskState.inProgress;
       case 'completed':
         return TaskState.completed;
       default:
         return TaskState.initial;
+    }
+  }
+
+  static String _taskStateToStorageValue(TaskState state) {
+    switch (state) {
+      case TaskState.accepted:
+        return 'accepted';
+      case TaskState.inProgress:
+        return 'in_progress';
+      case TaskState.completed:
+        return 'completed';
+      case TaskState.initial:
+        return 'pending';
     }
   }
 
@@ -710,7 +720,9 @@ class ChildData {
         }
       }
 
-      print('Inserting: package=$packageName, appName=$appName, minutes=$allowedMinutes');
+      print(
+        'Inserting: package=$packageName, appName=$appName, minutes=$allowedMinutes',
+      );
 
       batch.insert('app_limits', {
         'package_name': packageName,

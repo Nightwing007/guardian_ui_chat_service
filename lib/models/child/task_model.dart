@@ -1,5 +1,5 @@
 /// Represents the lifecycle state of a task.
-enum TaskState { initial, accepted, completed }
+enum TaskState { initial, accepted, inProgress, completed }
 
 class TaskModel {
   final int id;
@@ -32,6 +32,9 @@ class TaskModel {
     switch (state) {
       case 'accepted':
         return TaskState.accepted;
+      case 'in_progress':
+      case 'inProgress':
+        return TaskState.inProgress;
       case 'completed':
         return TaskState.completed;
       default:

@@ -26,149 +26,165 @@ class ParentProfileScreen extends StatefulWidget {
 class _ParentProfileScreenState extends State<ParentProfileScreen> {
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: widget.onBack,
-                  child: const Icon(
-                    Icons.arrow_back_ios,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Profile',
-                  style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Profile Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    AppColors.primaryGradientStart,
-                    AppColors.primaryGradientEnd,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 35,
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
+                  // Main content area with scrollable content
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Parent Account',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header
+                          Row(
+                            children: [
+                              GestureDetector(
+                                onTap: widget.onBack,
+                                child: const Icon(
+                                  Icons.arrow_back_ios,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Profile',
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.email,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 14,
+                          const SizedBox(height: 24),
+
+                          // Profile Card
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  AppColors.primaryGradientStart,
+                                  AppColors.primaryGradientEnd,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 35,
+                                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 40,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Parent Account',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.email,
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white.withValues(alpha: 0.8),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 24),
+
+                          // Children Section
+                          Text(
+                            'Children',
+                            style: GoogleFonts.poppins(
+                              color: AppColors.textGrey,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          _buildMenuItem(
+                            icon: Icons.family_restroom,
+                            title: 'Children',
+                            subtitle: 'View and manage your children',
+                            onTap: () async {
+                              final changed = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChildrenScreen(
+                                    email: widget.email,
+                                    password: widget.password,
+                                    onBack: () => Navigator.pop(context, true),
+                                  ),
+                                ),
+                              );
+                              if (changed == true) {
+                                await widget.onChildrenChanged();
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 32),
+
+                          // Logout Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: widget.onLogout,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.sosRed,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                'Logout',
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Children Section
-            Text(
-              'Children',
-              style: GoogleFonts.poppins(
-                color: AppColors.textGrey,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            _buildMenuItem(
-              icon: Icons.family_restroom,
-              title: 'Children',
-              subtitle: 'View and manage your children',
-              onTap: () async {
-                final changed = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChildrenScreen(
-                      email: widget.email,
-                      password: widget.password,
-                      onBack: () => Navigator.pop(context, true),
-                    ),
-                  ),
-                );
-                if (changed == true) {
-                  await widget.onChildrenChanged();
-                }
-              },
-            ),
-            const SizedBox(height: 32),
-
-            // Logout Button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: widget.onLogout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.sosRed,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: Text(
-                  'Logout',
-                  style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

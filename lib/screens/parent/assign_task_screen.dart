@@ -93,17 +93,11 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       final cloudTasks = data?['tasks'] as List<dynamic>?;
 
       if (cloudTasks != null) {
-        // Get existing to check duplicates
-        final existing = await _db.getTasks(childHash: childHash);
-        final existingIds = existing
-            .where((t) => t['remote_id'] != null)
-            .map((t) => t['remote_id'])
-            .toSet();
+        await _db.clearTasks(childHash: childHash);
 
         for (final task in cloudTasks) {
           if (task is Map) {
             final remoteId = task['id'] as int?;
-            if (remoteId != null && existingIds.contains(remoteId)) continue;
 
             // Cloud returns minutes, convert to seconds for local
             final durationSeconds = (task['duration'] as int? ?? 0) * 60;
@@ -177,6 +171,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       case 'completed':
         return TaskStatus.completed;
       case 'in_progress':
+      case 'accepted':
         return TaskStatus.ongoing;
       default:
         return TaskStatus.notAccepted;

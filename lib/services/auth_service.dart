@@ -139,7 +139,7 @@ class AuthService {
     } catch (e, stackTrace) {
       print('addChildAccount error: $e');
       print('Stack trace: $stackTrace');
-return {'success': false, 'message': 'Network error ($e)'};
+      return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
@@ -154,15 +154,15 @@ return {'success': false, 'message': 'Network error ($e)'};
     try {
       final response = await http
           .patch(
-            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/'),
+            Uri.parse(
+              '$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/',
+            ),
             headers: {
               'Content-Type': 'application/json',
               'X-Email': email,
               'X-Password': password,
             },
-            body: jsonEncode({
-              'limit_minutes': limitMinutes,
-            }),
+            body: jsonEncode({'limit_minutes': limitMinutes}),
           )
           .timeout(const Duration(seconds: 10));
 
@@ -419,7 +419,7 @@ return {'success': false, 'message': 'Network error ($e)'};
     } catch (e, stackTrace) {
       print('getInstalledApps error: $e');
       print('Stack trace: $stackTrace');
-return {'success': false, 'message': 'Network error ($e)'};
+      return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
@@ -494,7 +494,9 @@ return {'success': false, 'message': 'Network error ($e)'};
     try {
       final response = await http
           .delete(
-            Uri.parse('$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/'),
+            Uri.parse(
+              '$baseUrl/api/mobile/children/$childHash/app-limits/$limitId/',
+            ),
             headers: {
               'Content-Type': 'application/json',
               'X-Email': email,
@@ -530,9 +532,7 @@ return {'success': false, 'message': 'Network error ($e)'};
       final response = await http
           .get(
             Uri.parse('$baseUrl/api/children/$childHash/app-limits/'),
-            headers: {
-              'X-Device-Token': deviceToken,
-            },
+            headers: {'X-Device-Token': deviceToken},
           )
           .timeout(const Duration(seconds: 10));
 
@@ -625,6 +625,46 @@ return {'success': false, 'message': 'Network error ($e)'};
     } catch (e, stackTrace) {
       print('getChildTasks error: $e');
       print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateChildTaskState({
+    required String childHash,
+    required String deviceToken,
+    required int taskId,
+    required String state,
+  }) async {
+    debugPrint('AuthService.updateChildTaskState called for task: $taskId');
+
+    try {
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/tasks/$taskId/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Device-Token': deviceToken,
+            },
+            body: jsonEncode({'state': state}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('updateChildTaskState status: ${response.statusCode}');
+      debugPrint('updateChildTaskState body: ${response.body}');
+
+      final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to update task state',
+        };
+      }
+    } catch (e, stackTrace) {
+      debugPrint('updateChildTaskState error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {'success': false, 'message': 'Network error ($e)'};
     }
   }

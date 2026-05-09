@@ -628,6 +628,18 @@ class AppParentDatabase {
         .toList();
   }
 
+  Future<void> clearTasks({required String childHash}) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return;
+
+    await _requireDb().delete(
+      'tasks',
+      where: 'child_hash = ?',
+      whereArgs: [trimmedChildHash],
+    );
+  }
+
   Future<void> deleteTask({required int localId}) async {
     await initialize();
     await _requireDb().delete('tasks', where: 'id = ?', whereArgs: [localId]);

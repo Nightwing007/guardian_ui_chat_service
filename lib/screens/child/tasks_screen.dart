@@ -31,19 +31,23 @@ class _TasksScreenState extends State<TasksScreen> {
     final mapTasks = await _db.child.getTasks();
     final taskModels = await _db.child.getTaskModels();
     final points = await _db.child.getTotalPoints();
-    
+
     if (mounted) {
       setState(() {
         if (mapTasks.isNotEmpty) {
           _tasks = mapTasks;
         } else {
-          _tasks = taskModels.map((t) => {
-            'id': t.id,
-            'name': t.name,
-            'category': t.category,
-            'duration': _parseDurationToSeconds(t.timerTime),
-            'state': t.state.name,
-          }).toList();
+          _tasks = taskModels
+              .map(
+                (t) => {
+                  'id': t.id,
+                  'name': t.name,
+                  'category': t.category,
+                  'duration': _parseDurationToSeconds(t.timerTime),
+                  'state': t.state.name,
+                },
+              )
+              .toList();
         }
         _totalPoints = points;
         _isLoading = false;
@@ -53,14 +57,14 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Future<void> _refreshFromCloud() async {
     if (_isRefreshing) return;
-    
+
     setState(() => _isRefreshing = true);
-    
+
     try {
       final settings = await _db.child.getLinkedChildSettings();
       final deviceToken = settings['deviceToken'];
       final childHash = settings['childHash'];
-      
+
       if (deviceToken != null && childHash != null) {
         final result = await _auth.getChildTasks(
           childHash: childHash,
@@ -77,7 +81,7 @@ class _TasksScreenState extends State<TasksScreen> {
     } catch (e) {
       print('_refreshFromCloud error: $e');
     }
-    
+
     await _loadData();
     if (mounted) {
       setState(() => _isRefreshing = false);
@@ -88,7 +92,9 @@ class _TasksScreenState extends State<TasksScreen> {
     if (timerTime.contains('h')) {
       final parts = timerTime.split('h');
       final hours = int.tryParse(parts[0]) ?? 0;
-      final mins = parts.length > 1 ? (int.tryParse(parts[1].replaceAll('m', '')) ?? 0) : 0;
+      final mins = parts.length > 1
+          ? (int.tryParse(parts[1].replaceAll('m', '')) ?? 0)
+          : 0;
       return (hours * 60 + mins) * 60;
     } else if (timerTime.contains('m')) {
       final mins = int.tryParse(timerTime.replaceAll('m', '')) ?? 0;
@@ -100,10 +106,45 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _onTaskCompleted(int taskId) async {
     await _db.child.updateTaskState(taskId, TaskState.completed);
     await _db.child.addPoints(3);
+    await _updateRemoteTaskState(taskId, 'completed');
     await _loadData();
   }
 
-  int get _completedTasks => _tasks.where((t) => t['state'] == 'completed').length;
+  Future<void> _onTaskAccepted(int taskId) async {
+    await _db.child.updateTaskState(taskId, TaskState.inProgress);
+    await _updateRemoteTaskState(taskId, 'in_progress');
+  }
+
+  Future<void> _updateRemoteTaskState(int localTaskId, String state) async {
+    final task = _tasks.cast<Map<String, dynamic>?>().firstWhere(
+      (task) => task?['id'] == localTaskId,
+      orElse: () => null,
+    );
+    final remoteTaskId = task?['remote_id'] as int?;
+    if (remoteTaskId == null) return;
+
+    try {
+      final settings = await _db.child.getLinkedChildSettings();
+      final deviceToken = settings['deviceToken'];
+      final childHash = settings['childHash'];
+      if (deviceToken == null || childHash == null) return;
+
+      final result = await _auth.updateChildTaskState(
+        childHash: childHash,
+        deviceToken: deviceToken,
+        taskId: remoteTaskId,
+        state: state,
+      );
+      if (result['success'] != true) {
+        debugPrint('Failed to update remote task state: ${result['message']}');
+      }
+    } catch (e) {
+      debugPrint('Remote task state update error: $e');
+    }
+  }
+
+  int get _completedTasks =>
+      _tasks.where((t) => t['state'] == 'completed').length;
   int get _totalTasks => _tasks.length;
 
   String _formatDuration(int seconds) {
@@ -119,6 +160,9 @@ class _TasksScreenState extends State<TasksScreen> {
     switch (state) {
       case 'accepted':
         return TaskState.accepted;
+      case 'in_progress':
+      case 'inProgress':
+        return TaskState.inProgress;
       case 'completed':
         return TaskState.completed;
       default:
@@ -134,11 +178,20 @@ class _TasksScreenState extends State<TasksScreen> {
         if (_isRefreshing)
           const Padding(
             padding: EdgeInsets.only(bottom: 8),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
           ),
         Text(
           'Your Tasks',
-          style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+          style: GoogleFonts.poppins(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -158,7 +211,9 @@ class _TasksScreenState extends State<TasksScreen> {
               taskName: task['name'] as String,
               taskCategory: task['category'] as String,
               timerTime: _formatDuration(task['duration'] as int),
-              gradientColors: AppColors.allTaskGradients[index % AppColors.allTaskGradients.length],
+              gradientColors: AppColors
+                  .allTaskGradients[index % AppColors.allTaskGradients.length],
+              onAccepted: _onTaskAccepted,
               onCompleted: _onTaskCompleted,
               initialState: _parseTaskState(task['state'] as String),
             );
@@ -166,7 +221,7 @@ class _TasksScreenState extends State<TasksScreen> {
         const SizedBox(height: 120),
       ],
     );
-    
+
     return RefreshIndicator(
       onRefresh: _refreshFromCloud,
       color: Colors.white,
@@ -181,13 +236,16 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Widget _buildSummaryCard() {
     double progress = _totalTasks == 0 ? 0 : _completedTasks / _totalTasks;
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+          colors: [
+            AppColors.primaryGradientStart,
+            AppColors.primaryGradientEnd,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -214,7 +272,10 @@ class _TasksScreenState extends State<TasksScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -288,11 +349,11 @@ class _TasksScreenState extends State<TasksScreen> {
             right: 0,
             bottom: 0,
             child: SizedBox(
-               width: 140,
-               child: Image.asset(
-                 'assets/images/task-summary-ill.png',
-                 fit: BoxFit.contain,
-               ),
+              width: 140,
+              child: Image.asset(
+                'assets/images/task-summary-ill.png',
+                fit: BoxFit.contain,
+              ),
             ),
           ),
         ],

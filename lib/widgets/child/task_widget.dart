@@ -9,6 +9,7 @@ class TaskWidget extends StatefulWidget {
   final String taskCategory;
   final String timerTime;
   final List<Color> gradientColors;
+  final Function(int taskId)? onAccepted;
   final Function(int taskId)? onCompleted;
   final TaskState initialState;
 
@@ -19,6 +20,7 @@ class TaskWidget extends StatefulWidget {
     required this.taskCategory,
     required this.timerTime,
     required this.gradientColors,
+    this.onAccepted,
     this.onCompleted,
     this.initialState = TaskState.initial,
   });
@@ -27,10 +29,10 @@ class TaskWidget extends StatefulWidget {
     final regex = RegExp(r'(\d+)([smh])');
     final match = regex.firstMatch(timerTime);
     if (match == null) return const Duration(seconds: 5);
-    
+
     final value = int.parse(match.group(1)!);
     final unit = match.group(2);
-    
+
     switch (unit) {
       case 's':
         return Duration(seconds: value);
@@ -47,7 +49,8 @@ class TaskWidget extends StatefulWidget {
   State<TaskWidget> createState() => _TaskWidgetState();
 }
 
-class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateMixin {
+class _TaskWidgetState extends State<TaskWidget>
+    with SingleTickerProviderStateMixin {
   late TaskState _currentState;
   late AnimationController _animationController;
 
@@ -70,6 +73,11 @@ class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateM
         }
       }
     });
+
+    if (_currentState == TaskState.accepted ||
+        _currentState == TaskState.inProgress) {
+      _animationController.forward();
+    }
   }
 
   @override
@@ -81,8 +89,11 @@ class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateM
   void _handleAccept() {
     if (_currentState == TaskState.initial) {
       setState(() {
-        _currentState = TaskState.accepted;
+        _currentState = TaskState.inProgress;
       });
+      if (widget.onAccepted != null) {
+        widget.onAccepted!(widget.taskId);
+      }
       _animationController.forward();
     }
   }
@@ -114,7 +125,8 @@ class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateM
               ],
             ),
           ),
-          if (_currentState == TaskState.accepted)
+          if (_currentState == TaskState.accepted ||
+              _currentState == TaskState.inProgress)
             Positioned(
               bottom: 0,
               left: 0,
@@ -170,10 +182,7 @@ class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateM
         ),
         Text(
           widget.taskCategory,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            color: AppColors.textGrey,
-          ),
+          style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textGrey),
         ),
       ],
     );
@@ -187,16 +196,24 @@ class _TaskWidgetState extends State<TaskWidget> with SingleTickerProviderStateM
     switch (_currentState) {
       case TaskState.initial:
         buttonText = 'ACCEPT';
-        buttonColor = Colors.white.withValues(alpha: 0.2); // semi-transparent wrapper 
+        buttonColor = Colors.white.withValues(
+          alpha: 0.2,
+        ); // semi-transparent wrapper
         break;
       case TaskState.accepted:
         buttonText = 'ACCEPTED';
         buttonColor = Colors.white.withValues(alpha: 0.2);
         break;
+      case TaskState.inProgress:
+        buttonText = 'IN PROGRESS';
+        buttonColor = Colors.white.withValues(alpha: 0.2);
+        break;
       case TaskState.completed:
         buttonText = 'COMPLETED';
         buttonColor = Colors.white.withValues(alpha: 0.1);
-        textColor = Colors.white.withValues(alpha: 0.6); // slight fade for completion
+        textColor = Colors.white.withValues(
+          alpha: 0.6,
+        ); // slight fade for completion
         break;
     }
 
