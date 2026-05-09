@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/task_widget.dart';
 import 'package:myapp/services/app_database.dart';
+import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/models/child/task_model.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -14,9 +15,11 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   final _db = AppDatabase();
-  List<TaskModel> _tasks = [];
+  final _auth = AuthService();
+  List<Map<String, dynamic>> _tasks = [];
   int _totalPoints = 10;
   bool _isLoading = true;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -25,15 +28,73 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _loadData() async {
-    final tasks = await _db.child.getTasks();
+    final mapTasks = await _db.child.getTasks();
+    final taskModels = await _db.child.getTaskModels();
     final points = await _db.child.getTotalPoints();
+    
     if (mounted) {
       setState(() {
-        _tasks = tasks;
+        if (mapTasks.isNotEmpty) {
+          _tasks = mapTasks;
+        } else {
+          _tasks = taskModels.map((t) => {
+            'id': t.id,
+            'name': t.name,
+            'category': t.category,
+            'duration': _parseDurationToSeconds(t.timerTime),
+            'state': t.state.name,
+          }).toList();
+        }
         _totalPoints = points;
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _refreshFromCloud() async {
+    if (_isRefreshing) return;
+    
+    setState(() => _isRefreshing = true);
+    
+    try {
+      final settings = await _db.child.getLinkedChildSettings();
+      final deviceToken = settings['deviceToken'];
+      final childHash = settings['childHash'];
+      
+      if (deviceToken != null && childHash != null) {
+        final result = await _auth.getChildTasks(
+          childHash: childHash,
+          deviceToken: deviceToken,
+        );
+        if (result['success'] == true) {
+          final data = result['data'] as Map<String, dynamic>?;
+          final tasks = data?['tasks'] as List<dynamic>?;
+          if (tasks != null) {
+            await _db.child.syncCloudTasks(tasks.cast<Map<String, dynamic>>());
+          }
+        }
+      }
+    } catch (e) {
+      print('_refreshFromCloud error: $e');
+    }
+    
+    await _loadData();
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
+  }
+
+  int _parseDurationToSeconds(String timerTime) {
+    if (timerTime.contains('h')) {
+      final parts = timerTime.split('h');
+      final hours = int.tryParse(parts[0]) ?? 0;
+      final mins = parts.length > 1 ? (int.tryParse(parts[1].replaceAll('m', '')) ?? 0) : 0;
+      return (hours * 60 + mins) * 60;
+    } else if (timerTime.contains('m')) {
+      final mins = int.tryParse(timerTime.replaceAll('m', '')) ?? 0;
+      return mins * 60;
+    }
+    return 0;
   }
 
   Future<void> _onTaskCompleted(int taskId) async {
@@ -42,51 +103,78 @@ class _TasksScreenState extends State<TasksScreen> {
     await _loadData();
   }
 
-  int get _completedTasks => _tasks.where((t) => t.state == TaskState.completed).length;
+  int get _completedTasks => _tasks.where((t) => t['state'] == 'completed').length;
   int get _totalTasks => _tasks.length;
+
+  String _formatDuration(int seconds) {
+    if (seconds >= 3600) {
+      final hours = seconds ~/ 3600;
+      final mins = (seconds % 3600) ~/ 60;
+      return '${hours}h${mins > 0 ? '${mins}m' : ''}';
+    }
+    return '${seconds ~/ 60}m';
+  }
+
+  TaskState _parseTaskState(String state) {
+    switch (state) {
+      case 'accepted':
+        return TaskState.accepted;
+      case 'completed':
+        return TaskState.completed;
+      default:
+        return TaskState.initial;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Your Tasks',
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+    final Widget content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_isRefreshing)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Complete your Todays Tasks',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: AppColors.textGrey,
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildSummaryCard(),
-          const SizedBox(height: 24),
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator(color: Colors.white))
-          else
-            ...List.generate(_tasks.length, (index) {
-              return TaskWidget(
-                taskId: _tasks[index].id,
-                taskName: _tasks[index].name,
-                taskCategory: _tasks[index].category,
-                timerTime: _tasks[index].timerTime,
-                gradientColors: AppColors.allTaskGradients[index % AppColors.allTaskGradients.length],
-                onCompleted: _onTaskCompleted,
-                initialState: _tasks[index].state,
-              );
-            }),
-          const SizedBox(height: 120),
-        ],
+        Text(
+          'Your Tasks',
+          style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Complete your Todays Tasks',
+          style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textGrey),
+        ),
+        const SizedBox(height: 24),
+        _buildSummaryCard(),
+        const SizedBox(height: 24),
+        if (_isLoading)
+          const Center(child: CircularProgressIndicator(color: Colors.white))
+        else
+          ...List.generate(_tasks.length, (index) {
+            final task = _tasks[index];
+            return TaskWidget(
+              taskId: task['id'] as int,
+              taskName: task['name'] as String,
+              taskCategory: task['category'] as String,
+              timerTime: _formatDuration(task['duration'] as int),
+              gradientColors: AppColors.allTaskGradients[index % AppColors.allTaskGradients.length],
+              onCompleted: _onTaskCompleted,
+              initialState: _parseTaskState(task['state'] as String),
+            );
+          }),
+        const SizedBox(height: 120),
+      ],
+    );
+    
+    return RefreshIndicator(
+      onRefresh: _refreshFromCloud,
+      color: Colors.white,
+      backgroundColor: AppColors.primaryGradientStart,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+        child: content,
       ),
     );
   }

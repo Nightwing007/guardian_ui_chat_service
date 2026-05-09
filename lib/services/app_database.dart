@@ -37,7 +37,7 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 7,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -71,15 +71,7 @@ class AppDatabase {
     });
 
     // ── tasks ──
-    await db.execute('''
-      CREATE TABLE tasks (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT NOT NULL,
-        timer_time TEXT NOT NULL,
-        state TEXT NOT NULL DEFAULT 'initial'
-      )
-    ''');
+    await _createTasksTable(db);
 
     // Seed tasks from the bundled JSON asset.
     try {
@@ -164,6 +156,26 @@ class AppDatabase {
     await _createLocalAppUsageTable(db);
   }
 
+  Future<void> _createTasksTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY,
+        remote_id INTEGER,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        timer_time TEXT NOT NULL DEFAULT '5m',
+        duration INTEGER NOT NULL DEFAULT 0,
+        state TEXT NOT NULL DEFAULT 'initial',
+        reward_points INTEGER NOT NULL DEFAULT 0,
+        completed_at TEXT,
+        created TEXT NOT NULL,
+        updated TEXT NOT NULL,
+        child_hash TEXT,
+        UNIQUE(remote_id)
+      )
+    ''');
+  }
+
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.update('child_settings', {
@@ -246,6 +258,16 @@ class AppDatabase {
         'CREATE UNIQUE INDEX IF NOT EXISTS local_app_usage_package_child_hash_idx '
         'ON local_app_usage(package_name, child_hash)',
       );
+    }
+    if (oldVersion < 8) {
+      // Just ensure the tasks table has new columns
+      await _addColumnIfMissing(db, 'tasks', 'remote_id', 'INTEGER');
+      await _addColumnIfMissing(db, 'tasks', 'duration', 'INTEGER DEFAULT 0');
+      await _addColumnIfMissing(db, 'tasks', 'reward_points', 'INTEGER DEFAULT 0');
+      await _addColumnIfMissing(db, 'tasks', 'completed_at', 'TEXT');
+      await _addColumnIfMissing(db, 'tasks', 'created', 'TEXT');
+      await _addColumnIfMissing(db, 'tasks', 'updated', 'TEXT');
+      await _addColumnIfMissing(db, 'tasks', 'child_hash', 'TEXT');
     }
   }
 
@@ -333,7 +355,7 @@ class ChildData {
     _usageLoading = false;
   }
 
-  // ── Screen Time (SQLite) ──────────────────────────────────────────
+  // ── Screen Time (SQLite) ──────────────────────────────────────��─��─
 
   /// Total allowed screen time in minutes (from DB).
   Future<int> getTotalAllowedScreenTimeMinutes() async {
@@ -409,7 +431,25 @@ class ChildData {
 
   // ── Tasks (SQLite) ────────────────────────────────────────────────
 
-  Future<List<TaskModel>> getTasks() async {
+  Future<List<Map<String, dynamic>>> getTasks() async {
+    final rows = await _db.query('tasks', orderBy: 'created DESC');
+    return rows.map((row) {
+      return {
+        'id': row['id'],
+        'remote_id': row['remote_id'],
+        'name': row['name'],
+        'category': row['category'],
+        'duration': row['duration'] ?? 0,
+        'state': row['state'],
+        'reward_points': row['reward_points'] ?? 0,
+        'completed_at': row['completed_at'],
+        'created': row['created'],
+        'updated': row['updated'],
+      };
+    }).toList();
+  }
+
+  Future<List<TaskModel>> getTaskModels() async {
     final rows = await _db.query('tasks', orderBy: 'id ASC');
     return rows
         .map(
@@ -431,6 +471,67 @@ class ChildData {
       where: 'id = ?',
       whereArgs: [taskId],
     );
+  }
+
+  Future<void> upsertTask({
+    required String name,
+    required String category,
+    required int duration,
+    int? remoteId,
+    String state = 'pending',
+    int rewardPoints = 3,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+    final timerTime = _formatDurationToTimerTime(duration);
+    await _db.insert(
+      'tasks',
+      {
+        'remote_id': remoteId,
+        'name': name,
+        'category': category,
+        'timer_time': timerTime,
+        'duration': duration,
+        'state': state,
+        'reward_points': rewardPoints,
+        'completed_at': null,
+        'created': now,
+        'updated': now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  String _formatDurationToTimerTime(int seconds) {
+    if (seconds >= 3600) {
+      final hours = seconds ~/ 3600;
+      final mins = (seconds % 3600) ~/ 60;
+      return '${hours}h${mins > 0 ? '${mins}m' : ''}';
+    }
+    return '${seconds ~/ 60}m';
+  }
+
+  Future<void> syncCloudTasks(List<Map<String, dynamic>> cloudTasks) async {
+    if (cloudTasks.isEmpty) return;
+    
+    final existingTasks = await getTasks();
+    final existingIds = existingTasks
+        .where((t) => t['remote_id'] != null)
+        .map((t) => t['remote_id'] as int)
+        .toSet();
+    
+    for (final task in cloudTasks) {
+      final remoteId = task['id'] as int?;
+      if (remoteId != null && existingIds.contains(remoteId)) continue;
+      
+      await upsertTask(
+        name: task['name'] ?? '',
+        category: task['category'] ?? 'Chore',
+        duration: task['duration'] ?? 0,
+        remoteId: remoteId,
+        state: task['state'] ?? 'pending',
+        rewardPoints: task['reward_points'] ?? 3,
+      );
+    }
   }
 
   int completedTasksSync(List<TaskModel> tasks) =>
@@ -545,7 +646,7 @@ class ChildData {
     );
   }
 
-  // ── Local Usage Snapshots (SQLite) ────────────────────────────────
+  // ── Local Usage Snapshots (SQLite) ───────────────────────────────
 
   Future<void> upsertLocalUsageSnapshot(
     List<Map<String, dynamic>> apps, {
@@ -580,7 +681,7 @@ class ChildData {
     await batch.commit(noResult: true);
   }
 
-  // ── App Limits (SQLite) ───────────────────────────────────────────────
+  // ── App Limits (SQLite) ──────────────────────────────────────────
 
   Future<void> saveAppLimits(List<Map<String, dynamic>> limits) async {
     print('saveAppLimits called with ${limits.length} items');

@@ -7,6 +7,7 @@ import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/child/app_icon_cache.dart';
 import 'package:myapp/services/child/app_usage_service.dart';
 import 'package:myapp/services/child/installed_apps_sync_service.dart';
+import 'package:myapp/services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;
@@ -62,6 +63,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final synced = await InstalledAppsSyncService()
           .syncLocalInstalledAppsToCloud();
+      
+      // Also sync tasks from cloud
+      final settings = await _db.child.getLinkedChildSettings();
+      final deviceToken = settings['deviceToken'];
+      final childHash = settings['childHash'];
+      
+      if (deviceToken != null && childHash != null) {
+        final result = await AuthService().getChildTasks(
+          childHash: childHash,
+          deviceToken: deviceToken,
+        );
+        if (result['success'] == true) {
+          final data = result['data'] as Map<String, dynamic>?;
+          final tasks = data?['tasks'] as List<dynamic>?;
+          if (tasks != null) {
+            await _db.child.syncCloudTasks(tasks.cast<Map<String, dynamic>>());
+          }
+        }
+      }
+      
       await _refreshUsage();
 
       if (!mounted) return;

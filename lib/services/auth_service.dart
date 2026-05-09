@@ -592,6 +592,43 @@ return {'success': false, 'message': 'Network error ($e)'};
     }
   }
 
+  Future<Map<String, dynamic>> getChildTasks({
+    required String childHash,
+    required String deviceToken,
+  }) async {
+    print('AuthService.getChildTasks called for child: $childHash');
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/tasks/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Device-Token': deviceToken,
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print('getChildTasks status: ${response.statusCode}');
+      print('getChildTasks body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to fetch tasks',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('getChildTasks error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
   Future<Map<String, dynamic>> createTask({
     required String email,
     required String password,
