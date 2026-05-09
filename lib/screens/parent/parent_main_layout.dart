@@ -32,6 +32,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
   int _localCacheVersion = 0;
   String _selectedChildHash = '';
   String _selectedChildName = 'Child';
+  bool _isSwitchingChild = false;
 
   @override
   void initState() {
@@ -71,14 +72,36 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
   }
 
   Future<void> _reloadForSelectedChild() async {
+    if (_isSwitchingChild) return;
+
+    if (mounted) {
+      setState(() => _isSwitchingChild = true);
+    }
+
     final selectedChild = await AppParentDatabase().ensureSelectedChild(
       preferredChildHash: _selectedChildHash,
     );
     final selectedHash = selectedChild?['child_hash']?.toString().trim() ?? '';
-    if (selectedHash.isEmpty) return;
+    if (selectedHash.isEmpty) {
+      if (mounted) {
+        setState(() => _isSwitchingChild = false);
+      }
+      return;
+    }
 
-    await SessionService.updateParentSelectedChild(selectedHash);
-    await _syncSelectedChildData(selectedHash);
+    try {
+      await SessionService.updateParentSelectedChild(selectedHash);
+      await _syncSelectedChildData(selectedHash);
+    } catch (e) {
+      debugPrint('Failed to switch selected child: $e');
+      if (mounted) {
+        setState(() => _isSwitchingChild = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to switch child')));
+      }
+      return;
+    }
 
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
@@ -319,9 +342,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
     ParentProfileScreen(
       email: widget.email,
       password: widget.password,
-      onChildrenChanged: () {
-        _reloadForSelectedChild();
-      },
+      onChildrenChanged: _reloadForSelectedChild,
       onBack: () {
         setState(() {
           _currentIndex = 2;
@@ -362,7 +383,50 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
               },
             ),
           ),
+          if (_isSwitchingChild) const _SwitchingChildOverlay(),
         ],
+      ),
+    );
+  }
+}
+
+class _SwitchingChildOverlay extends StatelessWidget {
+  const _SwitchingChildOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: AbsorbPointer(
+        child: ColoredBox(
+          color: AppColors.scaffoldBackground,
+          child: Center(
+            child: Container(
+              width: 220,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primaryPurple),
+                  SizedBox(height: 18),
+                  Text(
+                    'Switching child...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

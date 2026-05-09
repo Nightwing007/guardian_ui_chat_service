@@ -8,7 +8,7 @@ class ParentProfileScreen extends StatefulWidget {
   final String password;
   final VoidCallback onBack;
   final VoidCallback onLogout;
-  final VoidCallback onChildrenChanged;
+  final Future<void> Function() onChildrenChanged;
 
   const ParentProfileScreen({
     super.key,
@@ -137,7 +137,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
                   ),
                 );
                 if (changed == true) {
-                  widget.onChildrenChanged();
+                  await widget.onChildrenChanged();
                 }
               },
             ),
