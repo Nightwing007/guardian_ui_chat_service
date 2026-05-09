@@ -591,4 +591,130 @@ return {'success': false, 'message': 'Network error ($e)'};
       return {'success': false, 'message': 'Network error ($e)'};
     }
   }
+
+  Future<Map<String, dynamic>> createTask({
+    required String email,
+    required String password,
+    required String childHash,
+    required String name,
+    required String category,
+    required int duration,
+    required int rewardPoints,
+  }) async {
+    print('AuthService.createTask called for child: $childHash');
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/tasks/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Email': email,
+              'X-Password': password,
+            },
+            body: jsonEncode({
+              'name': name,
+              'category': category,
+              'duration': duration,
+              'reward_points': rewardPoints,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print('createTask status: ${response.statusCode}');
+      print('createTask body: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': data, 'task': data['task']};
+      } else {
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to create task',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('createTask error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteTask({
+    required String email,
+    required String password,
+    required String childHash,
+    required int taskId,
+  }) async {
+    print('AuthService.deleteTask called for task: $taskId');
+
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/tasks/$taskId/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Email': email,
+              'X-Password': password,
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print('deleteTask status: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return {'success': true};
+      } else {
+        final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to delete task',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('deleteTask error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
+  Future<Map<String, dynamic>> getTasks({
+    required String email,
+    required String password,
+    required String childHash,
+  }) async {
+    print('AuthService.getTasks called for child: $childHash');
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/mobile/children/$childHash/tasks/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Email': email,
+              'X-Password': password,
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print('getTasks status: ${response.statusCode}');
+      print('getTasks body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to fetch tasks',
+        };
+      }
+    } catch (e, stackTrace) {
+      print('getTasks error: $e');
+      print('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
 }

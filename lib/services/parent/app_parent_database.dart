@@ -18,7 +18,7 @@ class AppParentDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai_parent.db');
     _db = await openDatabase(
       dbPath,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -42,6 +42,7 @@ class AppParentDatabase {
     await _createAppUsageTable(db);
     await _createInstalledAppsTable(db);
     await _createAppLimitsTable(db);
+    await _createTasksTable(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -53,6 +54,9 @@ class AppParentDatabase {
     }
     if (oldVersion < 4) {
       await _createAppLimitsTable(db);
+    }
+    if (oldVersion < 5) {
+      await _createTasksTable(db);
     }
   }
 
@@ -101,6 +105,26 @@ class AppParentDatabase {
         limit_minutes INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         UNIQUE(child_hash, package_name)
+      )
+    ''');
+  }
+
+  Future<void> _createTasksTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remote_id INTEGER,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        duration INTEGER NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        reward_points INTEGER NOT NULL DEFAULT 3,
+        completed_at TEXT,
+        created TEXT NOT NULL,
+        updated TEXT NOT NULL,
+        child_hash TEXT NOT NULL,
+        guardian_id INTEGER,
+        UNIQUE(child_hash, name, created)
       )
     ''');
   }
@@ -429,6 +453,84 @@ class AppParentDatabase {
       'cloud_limit_id': row['cloud_limit_id'],
       'limit_minutes': row['limit_minutes'],
     }).toList();
+  }
+
+  Future<Map<String, dynamic>> upsertTask({
+    required String childHash,
+    required String name,
+    required String category,
+    required int duration,
+    int? remoteId,
+    String state = 'pending',
+    int rewardPoints = 3,
+  }) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) {
+      return {'success': false, 'message': 'child_hash is required'};
+    }
+
+    final now = DateTime.now().toIso8601String();
+    try {
+      await _requireDb().insert(
+        'tasks',
+        {
+          'remote_id': remoteId,
+          'name': name,
+          'category': category,
+          'duration': duration,
+          'state': state,
+          'reward_points': rewardPoints,
+          'completed_at': null,
+          'created': now,
+          'updated': now,
+          'child_hash': trimmedChildHash,
+          'guardian_id': null,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      return {'success': true};
+    } catch (e) {
+      print('upsertTask error: $e');
+      return {'success': false, 'message': '$e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTasks({required String childHash}) async {
+    await initialize();
+    final trimmedChildHash = childHash.trim();
+    if (trimmedChildHash.isEmpty) return [];
+
+    final rows = await _requireDb().query(
+      'tasks',
+      where: 'child_hash = ?',
+      whereArgs: [trimmedChildHash],
+      orderBy: 'created DESC',
+    );
+
+    return rows.map((row) => {
+      'id': row['id'],
+      'remote_id': row['remote_id'],
+      'name': row['name'],
+      'category': row['category'],
+      'duration': row['duration'],
+      'state': row['state'],
+      'reward_points': row['reward_points'],
+      'completed_at': row['completed_at'],
+      'created': row['created'],
+      'updated': row['updated'],
+      'child_hash': row['child_hash'],
+      'guardian_id': row['guardian_id'],
+    }).toList();
+  }
+
+  Future<void> deleteTask({required int localId}) async {
+    await initialize();
+    await _requireDb().delete(
+      'tasks',
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
   }
 
   Future<void> deleteAppLimit({

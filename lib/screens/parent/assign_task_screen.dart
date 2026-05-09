@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/add_task_bottom_sheet.dart';
+import 'package:myapp/services/parent/app_parent_database.dart';
+import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/session_service.dart';
 
 enum TaskStatus {
   completed, // green
@@ -16,24 +19,64 @@ class AssignTaskScreen extends StatefulWidget {
 }
 
 class _AssignTaskScreenState extends State<AssignTaskScreen> {
-  // Mock data for 3 default tasks
-  final List<Map<String, dynamic>> _tasks = [
-    {
-      'title': 'Do Home Work',
-      'duration': '5m',
-      'status': TaskStatus.completed,
-    },
-    {
-      'title': 'Read Book',
-      'duration': '15m',
-      'status': TaskStatus.notAccepted,
-    },
-    {
-      'title': 'Listen a Podcast',
-      'duration': '1h',
-      'status': TaskStatus.ongoing,
-    },
-  ];
+  String? _childHash;
+  String? _parentEmail;
+  String? _parentPassword;
+  final AppParentDatabase _db = AppParentDatabase();
+  final AuthService _auth = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSession();
+  }
+
+  Future<void> _loadSession() async {
+    final session = await SessionService.getParentSession();
+    setState(() {
+      _childHash = session['childHash'];
+      _parentEmail = session['email'];
+      _parentPassword = session['password'];
+    });
+    if (_childHash != null) {
+      await _loadTasks();
+    }
+  }
+
+Future<void> _loadTasks() async {
+    if (_childHash == null) return;
+    final tasks = await _db.getTasks(childHash: _childHash!);
+    setState(() {
+      _tasks.clear();
+      _tasks.addAll(tasks.map((t) => {
+        'title': t['name'],
+        'duration': _formatDuration(t['duration'] as int),
+        'status': _mapState(t['state'] as String),
+        'localId': t['id'],
+        'remote_id': t['remote_id'],
+      }));
+    });
+  }
+
+  String _formatDuration(int seconds) {
+    if (seconds >= 3600) {
+      return '${seconds ~/ 3600}h${seconds % 3600 > 0 ? '${(seconds % 3600) ~/ 60}m' : ''}';
+    }
+    return '${seconds ~/ 60}m';
+  }
+
+  TaskStatus _mapState(String state) {
+    switch (state) {
+      case 'completed':
+        return TaskStatus.completed;
+      case 'in_progress':
+        return TaskStatus.ongoing;
+      default:
+        return TaskStatus.notAccepted;
+    }
+  }
+
+  List<Map<String, dynamic>> _tasks = [];
 
   Color _getStatusColor(TaskStatus status) {
     switch (status) {
@@ -91,13 +134,56 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                       );
 
                       if (result != null) {
+                        final name = result['title']!;
+                        final durationStr = result['duration']!;
+                        
+                        int durationMinutes = 0;
+                        if (durationStr.contains('h')) {
+                          final parts = durationStr.split('h');
+                          durationMinutes = (int.tryParse(parts[0]) ?? 0) * 60;
+                          if (parts.length > 1 && parts[1].contains('m')) {
+                            durationMinutes += int.tryParse(parts[1].replaceAll('m', '').trim()) ?? 0;
+                          }
+                        } else if (durationStr.contains('m')) {
+                          durationMinutes = int.tryParse(durationStr.replaceAll('m', '').trim()) ?? 0;
+                        }
+
+                        if (_childHash != null) {
+                          int? remoteId;
+                          if (_parentEmail != null && _parentPassword != null) {
+                            final result = await _auth.createTask(
+                              email: _parentEmail!,
+                              password: _parentPassword!,
+                              childHash: _childHash!,
+                              name: name,
+                              category: 'chore',
+                              duration: durationMinutes,
+                              rewardPoints: 3,
+                            );
+                            if (result['success'] == true) {
+                              final task = result['task'] as Map<String, dynamic>?;
+                              remoteId = task?['id'] as int?;
+                            }
+                          }
+                          await _db.upsertTask(
+                            childHash: _childHash!,
+                            name: name,
+                            category: 'Chore',
+                            duration: durationMinutes * 60,
+                            remoteId: remoteId,
+                          );
+                        }
+
                         setState(() {
                           _tasks.add({
-                            'title': result['title'],
+                            'title': name,
                             'duration': result['duration'],
                             'status': TaskStatus.notAccepted,
                           });
                         });
+                        if (_childHash != null) {
+                          await _loadTasks();
+                        }
                       }
                     },
                     child: Container(
@@ -211,7 +297,20 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                         
                         // Delete Icon
                         GestureDetector(
-                          onTap: () {
+                          onTap: () async {
+                            final localId = task['localId'] as int?;
+                            final remoteId = task['remote_id'] as int?;
+                            if (localId != null) {
+                              await _db.deleteTask(localId: localId);
+                            }
+                            if (remoteId != null && _parentEmail != null && _parentPassword != null && _childHash != null) {
+                              await _auth.deleteTask(
+                                email: _parentEmail!,
+                                password: _parentPassword!,
+                                childHash: _childHash!,
+                                taskId: remoteId,
+                              );
+                            }
                             setState(() {
                               _tasks.removeAt(index);
                             });

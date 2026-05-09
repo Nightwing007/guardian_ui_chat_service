@@ -1,37 +1,106 @@
 [
   {
     "id": 1,
-    "name": "MORNING READING",
+    "name": "Morning Reading",
     "category": "Daily Task",
-    "timerTime": "5s",
-    "state": "initial"
+    "duration": 300,
+    "state": "pending",
+    "reward_points": 10,
+    "completed_at": null,
+    "created": "2025-05-09T08:00:00Z",
+    "updated": "2025-05-09T08:00:00Z",
+    "child_id": 1,
+    "guardian_id": 1
   },
   {
     "id": 2,
-    "name": "CLEAN ROOM",
+    "name": "Clean Room",
     "category": "Chores",
-    "timerTime": "15s",
-    "state": "initial"
+    "duration": 900,
+    "state": "completed",
+    "reward_points": 20,
+    "completed_at": "2025-05-08T15:30:00Z",
+    "created": "2025-05-08T10:00:00Z",
+    "updated": "2025-05-08T15:30:00Z",
+    "child_id": 1,
+    "guardian_id": 1
   },
   {
     "id": 3,
-    "name": "HOMEWORK",
+    "name": "Homework",
     "category": "Study",
-    "timerTime": "45s",
-    "state": "initial"
+    "duration": 2700,
+    "state": "in_progress",
+    "reward_points": 30,
+    "completed_at": null,
+    "created": "2025-05-09T09:00:00Z",
+    "updated": "2025-05-09T09:30:00Z",
+    "child_id": 1,
+    "guardian_id": 1
   },
   {
     "id": 4,
-    "name": "EXERCISE",
+    "name": "Exercise",
     "category": "Daily Task",
-    "timerTime": "20s",
-    "state": "initial"
+    "duration": 1200,
+    "state": "pending",
+    "reward_points": 15,
+    "completed_at": null,
+    "created": "2025-05-09T07:00:00Z",
+    "updated": "2025-05-09T07:00:00Z",
+    "child_id": 1,
+    "guardian_id": 1
   },
   {
     "id": 5,
-    "name": "WATER PLANTS",
+    "name": "Water Plants",
     "category": "Chores",
-    "timerTime": "10s",
-    "state": "initial"
+    "duration": 600,
+    "state": "approved",
+    "reward_points": 5,
+    "completed_at": "2025-05-07T16:00:00Z",
+    "created": "2025-05-07T14:00:00Z",
+    "updated": "2025-05-07T16:30:00Z",
+    "child_id": 1,
+    "guardian_id": 1
+  },
+  {
+    "id": 6,
+    "name": "Math Practice",
+    "category": "Study",
+    "duration": 1800,
+    "state": "pending",
+    "reward_points": 25,
+    "completed_at": null,
+    "created": "2025-05-09T10:00:00Z",
+    "updated": "2025-05-09T10:00:00Z",
+    "child_id": 2,
+    "guardian_id": 1
+  },
+  {
+    "id": 7,
+    "name": "Walk Dog",
+    "category": "Chores",
+    "duration": 900,
+    "state": "completed",
+    "reward_points": 15,
+    "completed_at": "2025-05-08T17:00:00Z",
+    "created": "2025-05-08T16:00:00Z",
+    "updated": "2025-05-08T17:00:00Z",
+    "child_id": 2,
+    "guardian_id": 1
+  },
+  {
+    "id": 8,
+    "name": "Read Book",
+    "category": "Daily Task",
+    "duration": 600,
+    "state": "pending",
+    "reward_points": 10,
+    "completed_at": null,
+    "created": "2025-05-09T08:00:00Z",
+    "updated": "2025-05-09T08:00:00Z",
+    "child_id": 2,
+    "guardian_id": 1
   }
 ]

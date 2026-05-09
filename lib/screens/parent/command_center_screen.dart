@@ -4,6 +4,8 @@ import 'package:myapp/screens/parent/set_app_timing_screen.dart';
 import 'package:myapp/screens/parent/assign_task_screen.dart';
 import 'package:myapp/widgets/parent/set_screen_time_bottom_sheet.dart';
 import 'package:myapp/theme/app_colors.dart';
+import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/parent/app_parent_database.dart';
 
 class CommandCenterScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -24,9 +26,45 @@ class CommandCenterScreen extends StatefulWidget {
 }
 
 class _CommandCenterScreenState extends State<CommandCenterScreen> {
+  final AuthService _auth = AuthService();
+  final AppParentDatabase _db = AppParentDatabase();
   bool isSleepModeOn = true;
   bool isExamModeOn = false;
   Duration screenTimeLimit = const Duration(hours: 3);
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTasks();
+  }
+
+  Future<void> _syncTasks() async {
+    final result = await _auth.getTasks(
+      email: widget.email,
+      password: widget.password,
+      childHash: widget.childHash,
+    );
+
+    if (result['success'] == true) {
+      final data = result['data'] as Map<String, dynamic>?;
+      final tasks = data?['tasks'] as List<dynamic>?;
+      if (tasks != null) {
+        for (final task in tasks) {
+          if (task is Map) {
+            await _db.upsertTask(
+              childHash: widget.childHash,
+              name: task['name'] ?? '',
+              category: task['category'] ?? 'Chore',
+              duration: task['duration'] ?? 0,
+              remoteId: task['id'],
+              state: task['state'] ?? 'pending',
+              rewardPoints: task['reward_points'] ?? 3,
+            );
+          }
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +217,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                   trailing: _buildIconBtn(Icons.arrow_forward_ios, size: 14, onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const AssignTaskScreen()),
+                      MaterialPageRoute(builder: (context) => AssignTaskScreen()),
                     );
                   }),
                 ),
