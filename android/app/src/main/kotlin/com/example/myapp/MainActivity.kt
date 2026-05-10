@@ -36,6 +36,8 @@ import java.util.TimeZone
 
 class MainActivity : FlutterActivity() {
 
+    private lateinit var aiLoopMethodHandler: AiLoopMethodHandler
+
     private val CHANNEL = "guardian/monitoring"
 
     // In-memory state for services that don't have a real background
@@ -209,6 +211,9 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        aiLoopMethodHandler = AiLoopMethodHandler(this, flutterEngine)
+        aiLoopMethodHandler.register()
     }
 
     // ── Helpers ────────────────────────────────────────────────────────

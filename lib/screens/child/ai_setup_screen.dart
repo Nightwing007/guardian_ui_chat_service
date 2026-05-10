@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:myapp/screens/child/main_layout.dart';
 
 class AiModelSetupScreen extends StatefulWidget {
@@ -22,7 +21,7 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
 
   static const String _modelUrl =
       'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm';
-  final String _hfToken = dotenv.env['HUGGINGFACE_TOKEN'] ?? '';
+  String get _hfToken => '';
 
   @override
   void initState() {
@@ -47,7 +46,10 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
     });
 
     try {
-      await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
+      await FlutterGemma.installModel(
+        modelType: ModelType.gemmaIt,
+        fileType: ModelFileType.litertlm,
+      )
           .fromNetwork(_modelUrl, token: _hfToken)
           .withProgress((progress) {
         setState(() {
@@ -56,7 +58,7 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
         });
       }).install();
 
-      _onSuccess();
+      await _onSuccess();
     } catch (e) {
       _onError(e.toString());
     }
@@ -80,7 +82,10 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
     });
 
     try {
-      await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
+      await FlutterGemma.installModel(
+        modelType: ModelType.gemmaIt,
+        fileType: ModelFileType.litertlm,
+      )
           .fromFile(path)
           .withProgress((progress) {
         setState(() {
@@ -89,13 +94,20 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
         });
       }).install();
 
-      _onSuccess();
+      await _onSuccess();
     } catch (e) {
       _onError(e.toString());
     }
   }
 
-  void _onSuccess() async {
+  void _onError(String error) {
+    setState(() {
+      _mode = SetupMode.error;
+      _statusMessage = error;
+    });
+  }
+
+  Future<void> _onSuccess() async {
     setState(() {
       _mode = SetupMode.done;
       _progress = 1.0;
@@ -113,14 +125,6 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
       );
     }
   }
-
-  void _onError(String error) {
-    setState(() {
-      _mode = SetupMode.error;
-      _statusMessage = error;
-    });
-  }
-
 
 
   bool get _isBusy =>

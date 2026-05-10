@@ -12,6 +12,9 @@ import 'package:myapp/services/child/usage_submission_service.dart';
 import 'package:myapp/services/child/app_blocker_service.dart';
 import 'package:myapp/services/child/installed_apps_sync_service.dart';
 import 'package:myapp/services/session_service.dart';
+import 'package:myapp/services/child/feedback_loop_controller.dart';
+import 'package:myapp/services/child/ai_inference.dart';
+import 'package:myapp/screens/child/ai_setup_screen.dart';
 import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 
@@ -27,6 +30,7 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _dbReady = false;
+  final FeedbackLoopController _feedbackLoop = FeedbackLoopController();
 
   @override
   void initState() {
@@ -37,6 +41,8 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _feedbackLoop.stop();
+    _feedbackLoop.dispose();
     WidgetsBinding.instance.removeObserver(this);
     UsageSubmissionService().stop();
     AppBlockerService().stopMonitoring();
@@ -61,6 +67,16 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     InstalledAppsSyncService().startPackageChangeWatcher();
     await _syncChildProfileFromCloud();
     _syncAppLimitsFromCloud();
+
+    final modelReady = await AiChannel.ensureModel();
+    if (!modelReady && mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AiModelSetupScreen()),
+      );
+      return;
+    }
+
+    _feedbackLoop.start();
     if (mounted) {
       setState(() => _dbReady = true);
       widget.onReady?.call();

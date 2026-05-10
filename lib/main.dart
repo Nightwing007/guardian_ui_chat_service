@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/main_layout.dart';
@@ -6,7 +7,9 @@ import 'package:myapp/screens/welcome_screen.dart';
 import 'package:myapp/screens/parent/parent_main_layout.dart';
 import 'package:myapp/services/session_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FlutterGemma.initialize();
   runApp(const GuardianApp());
 }
 
