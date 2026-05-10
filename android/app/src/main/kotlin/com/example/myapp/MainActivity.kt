@@ -10,16 +10,24 @@ import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import android.os.Process
+import android.graphics.pdf.PdfRenderer
 import android.provider.Settings
 import android.text.TextUtils
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
 import androidx.core.graphics.drawable.toBitmap
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -170,6 +178,34 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
 
+                    // ── Parent Document Vault ─────────────────────────────
+                    "renderPdfPages" -> {
+                        val filePath = call.argument<String>("filePath")
+                        if (filePath.isNullOrBlank()) {
+                            result.error("INVALID_ARGUMENT", "filePath is required", null)
+                        } else {
+                            try {
+                                result.success(renderPdfPages(filePath))
+                            } catch (e: Exception) {
+                                result.error("PDF_RENDER_FAILED", e.message, null)
+                            }
+                        }
+                    }
+                    "shareFile" -> {
+                        val filePath = call.argument<String>("filePath")
+                        val fileName = call.argument<String>("fileName")
+                        if (filePath.isNullOrBlank()) {
+                            result.error("INVALID_ARGUMENT", "filePath is required", null)
+                        } else {
+                            try {
+                                shareFile(filePath, fileName)
+                                result.success(null)
+                            } catch (e: Exception) {
+                                result.error("SHARE_FAILED", e.message, null)
+                            }
+                        }
+                    }
+
                     else -> result.notImplemented()
                 }
             }
@@ -233,6 +269,80 @@ class MainActivity : FlutterActivity() {
         } finally {
             packageChangeReceiver = null
         }
+    }
+
+    private fun renderPdfPages(filePath: String): List<String> {
+        val source = File(filePath)
+        if (!source.exists()) return emptyList()
+
+        val outputDir = File(cacheDir, "document_vault_pdf_previews").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val outputPaths = mutableListOf<String>()
+
+        ParcelFileDescriptor.open(source, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+            PdfRenderer(descriptor).use { renderer ->
+                for (index in 0 until renderer.pageCount) {
+                    renderer.openPage(index).use { page ->
+                        val maxWidth = 1400
+                        val scale = maxOf(1f, maxWidth.toFloat() / page.width.toFloat())
+                        val width = (page.width * scale).toInt()
+                        val height = (page.height * scale).toInt()
+                        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        Canvas(bitmap).drawColor(Color.WHITE)
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+                        val output = File(outputDir, "${source.nameWithoutExtension}_page_${index + 1}.png")
+                        FileOutputStream(output).use { stream ->
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                        }
+                        bitmap.recycle()
+                        outputPaths.add(output.absolutePath)
+                    }
+                }
+            }
+        }
+
+        return outputPaths
+    }
+
+    private fun shareFile(filePath: String, fileName: String?) {
+        val sourceFile = File(filePath)
+        if (!sourceFile.exists()) {
+            throw IllegalArgumentException("File does not exist")
+        }
+
+        val shareDir = File(cacheDir, "document_vault_shares").apply {
+            mkdirs()
+        }
+        val shareFileName = fileName?.takeIf { it.isNotBlank() } ?: sourceFile.name
+        val shareFile = File(shareDir, shareFileName)
+        sourceFile.copyTo(shareFile, overwrite = true)
+
+        val uri = FileProvider.getUriForFile(
+            this,
+            "$packageName.fileprovider",
+            shareFile
+        )
+        val mimeType = mimeTypeFor(shareFile)
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = mimeType
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_TITLE, shareFileName)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        val chooser = Intent.createChooser(shareIntent, "Share $shareFileName").apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(chooser)
+    }
+
+    private fun mimeTypeFor(file: File): String {
+        val extension = file.extension.lowercase(Locale.US)
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+            ?: "application/octet-stream"
     }
 
     /**

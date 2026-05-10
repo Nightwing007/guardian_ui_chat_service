@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/parent/children_screen.dart';
+import 'package:myapp/screens/parent/document_vault_screen.dart';
+import 'package:myapp/services/parent/app_parent_database.dart';
 
 class ParentProfileScreen extends StatefulWidget {
   final String email;
@@ -83,7 +85,9 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 35,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.2,
+                                  ),
                                   child: const Icon(
                                     Icons.person,
                                     color: Colors.white,
@@ -93,7 +97,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Parent Account',
@@ -107,7 +112,9 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
                                       Text(
                                         widget.email,
                                         style: GoogleFonts.poppins(
-                                          color: Colors.white.withValues(alpha: 0.8),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.8,
+                                          ),
                                           fontSize: 14,
                                         ),
                                       ),
@@ -148,6 +155,55 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
                               if (changed == true) {
                                 await widget.onChildrenChanged();
                               }
+                            },
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Documents Section
+                          Text(
+                            'Documents',
+                            style: GoogleFonts.poppins(
+                              color: AppColors.textGrey,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          _buildMenuItem(
+                            icon: Icons.folder_copy,
+                            title: 'Documents',
+                            subtitle: 'Store files for the selected child',
+                            onTap: () async {
+                              final selectedChild = await AppParentDatabase()
+                                  .ensureSelectedChild();
+                              final childHash =
+                                  selectedChild?['child_hash']
+                                      ?.toString()
+                                      .trim() ??
+                                  '';
+
+                              if (!context.mounted) return;
+                              if (childHash.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Select or create a child first',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DocumentVaultScreen(
+                                    childHash: childHash,
+                                    childName: _childName(selectedChild),
+                                  ),
+                                ),
+                              );
                             },
                           ),
                           const SizedBox(height: 32),
@@ -243,5 +299,12 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
         ),
       ),
     );
+  }
+
+  String _childName(Map<String, dynamic>? child) {
+    final firstName = child?['first_name']?.toString().trim() ?? '';
+    final lastName = child?['last_name']?.toString().trim() ?? '';
+    final name = '$firstName $lastName'.trim();
+    return name.isEmpty ? 'Child' : name;
   }
 }
