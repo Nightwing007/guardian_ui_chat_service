@@ -596,6 +596,54 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> spendChildPoints({
+    required String childHash,
+    required String deviceToken,
+    required int points,
+    required String packageName,
+    required int additionalMinutes,
+  }) async {
+    debugPrint('AuthService.spendChildPoints called for $childHash');
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/child/$childHash/points/spend/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Device-Token': deviceToken,
+            },
+            body: jsonEncode({
+              'points': points,
+              'package_name': packageName,
+              'additional_minutes': additionalMinutes,
+              'reason': 'additional_app_time',
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint('spendChildPoints status: ${response.statusCode}');
+      debugPrint('spendChildPoints body: ${response.body}');
+
+      final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': data};
+      }
+
+      return {
+        'success': false,
+        'message': data is Map
+            ? data['error'] ?? data['message'] ?? 'Failed to spend points'
+            : 'Failed to spend points',
+      };
+    } catch (e, stackTrace) {
+      debugPrint('spendChildPoints error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
   Future<Map<String, dynamic>> getChildUsage({
     required String email,
     required String password,

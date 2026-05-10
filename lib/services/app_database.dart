@@ -37,7 +37,7 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 9,
+      version: 10,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -95,7 +95,9 @@ class AppDatabase {
       CREATE TABLE app_limits (
         package_name TEXT PRIMARY KEY,
         app_name TEXT NOT NULL,
-        allowed_minutes INTEGER NOT NULL
+        allowed_minutes INTEGER NOT NULL,
+        extended_minutes INTEGER NOT NULL DEFAULT 0,
+        extended_date TEXT
       )
     ''');
 
@@ -277,6 +279,15 @@ class AppDatabase {
     }
     if (oldVersion < 9) {
       await _createChildProfileTable(db);
+    }
+    if (oldVersion < 10) {
+      await _addColumnIfMissing(
+        db,
+        'app_limits',
+        'extended_minutes',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
+      await _addColumnIfMissing(db, 'app_limits', 'extended_date', 'TEXT');
     }
   }
 
@@ -582,6 +593,143 @@ class ChildData {
     await _updateCachedProfilePoints(points);
   }
 
+  Future<AdditionalTimePurchaseResult> buyAdditionalAppTime({
+    required String packageName,
+    required int pointsToSpend,
+  }) async {
+    final trimmedPackage = packageName.trim();
+    if (trimmedPackage.isEmpty) {
+      return const AdditionalTimePurchaseResult.failure(
+        message: 'No app selected.',
+      );
+    }
+    if (pointsToSpend <= 0) {
+      return const AdditionalTimePurchaseResult.failure(
+        message: 'Choose points first.',
+      );
+    }
+
+    final additionalMinutes = pointsToSpend * 10;
+    final today = _todayKey();
+    late final int updatedPoints;
+    late final int updatedLimitMinutes;
+
+    try {
+      await _db.transaction((txn) async {
+        final pointRows = await txn.query(
+          'child_settings',
+          columns: ['total_points'],
+          where: 'id = 1',
+          limit: 1,
+        );
+        final currentPoints = pointRows.isEmpty
+            ? 0
+            : _asInt(pointRows.first['total_points']);
+
+        if (currentPoints < pointsToSpend) {
+          throw const _AdditionalTimePurchaseException(
+            'Not enough points for that time.',
+          );
+        }
+
+        final limitRows = await txn.query(
+          'app_limits',
+          where: 'package_name = ?',
+          whereArgs: [trimmedPackage],
+          limit: 1,
+        );
+        if (limitRows.isEmpty) {
+          throw const _AdditionalTimePurchaseException(
+            'This app does not have a local limit to extend.',
+          );
+        }
+
+        final limit = limitRows.first;
+        final baseLimit = _asInt(limit['allowed_minutes']);
+        final existingExtension = limit['extended_date'] == today
+            ? _asInt(limit['extended_minutes'])
+            : 0;
+        final nextExtension = existingExtension + additionalMinutes;
+        updatedLimitMinutes = baseLimit + nextExtension;
+        updatedPoints = currentPoints - pointsToSpend;
+
+        await txn.update('child_settings', {
+          'total_points': updatedPoints,
+        }, where: 'id = 1');
+        await txn.update(
+          'app_limits',
+          {'extended_minutes': nextExtension, 'extended_date': today},
+          where: 'package_name = ?',
+          whereArgs: [trimmedPackage],
+        );
+      });
+    } on _AdditionalTimePurchaseException catch (e) {
+      return AdditionalTimePurchaseResult.failure(message: e.message);
+    }
+
+    await _updateCachedProfilePoints(updatedPoints);
+
+    return AdditionalTimePurchaseResult.success(
+      remainingPoints: updatedPoints,
+      additionalMinutes: additionalMinutes,
+      updatedLimitMinutes: updatedLimitMinutes,
+    );
+  }
+
+  Future<void> rollbackAdditionalAppTimePurchase({
+    required String packageName,
+    required int pointsToRestore,
+    required int minutesToRemove,
+  }) async {
+    final trimmedPackage = packageName.trim();
+    if (trimmedPackage.isEmpty ||
+        pointsToRestore <= 0 ||
+        minutesToRemove <= 0) {
+      return;
+    }
+
+    final today = _todayKey();
+
+    await _db.transaction((txn) async {
+      final pointRows = await txn.query(
+        'child_settings',
+        columns: ['total_points'],
+        where: 'id = 1',
+        limit: 1,
+      );
+      final currentPoints = pointRows.isEmpty
+          ? 0
+          : _asInt(pointRows.first['total_points']);
+      final restoredPoints = currentPoints + pointsToRestore;
+
+      await txn.update('child_settings', {
+        'total_points': restoredPoints,
+      }, where: 'id = 1');
+
+      final limitRows = await txn.query(
+        'app_limits',
+        where: 'package_name = ?',
+        whereArgs: [trimmedPackage],
+        limit: 1,
+      );
+      if (limitRows.isNotEmpty && limitRows.first['extended_date'] == today) {
+        final currentExtension = _asInt(limitRows.first['extended_minutes']);
+        final nextExtension = currentExtension - minutesToRemove;
+        await txn.update(
+          'app_limits',
+          {
+            'extended_minutes': nextExtension > 0 ? nextExtension : 0,
+            'extended_date': nextExtension > 0 ? today : null,
+          },
+          where: 'package_name = ?',
+          whereArgs: [trimmedPackage],
+        );
+      }
+    });
+
+    await _updateCachedProfilePoints(await getTotalPoints());
+  }
+
   Future<void> addPoints(int amount) async {
     final current = await getTotalPoints();
     await setTotalPoints(current + amount);
@@ -729,6 +877,13 @@ class ChildData {
     return '$firstName $lastName'.trim();
   }
 
+  static String _todayKey() {
+    final now = DateTime.now();
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    return '${now.year}-$month-$day';
+  }
+
   static List<dynamic> _decodeJsonList(dynamic value) {
     if (value is List) return value;
     if (value is! String || value.isEmpty) return [];
@@ -781,7 +936,7 @@ class ChildData {
       whereArgs: [packageName],
     );
     if (rows.isEmpty) return null;
-    return rows.first['allowed_minutes'] as int;
+    return _effectiveLimitMinutes(rows.first);
   }
 
   /// Returns all per-app limits as a map: packageName → allowedMinutes.
@@ -789,8 +944,17 @@ class ChildData {
     final rows = await _db.query('app_limits');
     return {
       for (final row in rows)
-        row['package_name'] as String: row['allowed_minutes'] as int,
+        row['package_name'] as String: _effectiveLimitMinutes(row),
     };
+  }
+
+  int _effectiveLimitMinutes(Map<String, Object?> row) {
+    final baseMinutes = _asInt(row['allowed_minutes']);
+    final extensionDate = row['extended_date']?.toString();
+    final extensionMinutes = extensionDate == _todayKey()
+        ? _asInt(row['extended_minutes'])
+        : 0;
+    return baseMinutes + extensionMinutes;
   }
 
   Future<void> setAppLimit(
@@ -798,10 +962,25 @@ class ChildData {
     String appName,
     int allowedMinutes,
   ) async {
+    final existing = await _db.query(
+      'app_limits',
+      columns: ['extended_minutes', 'extended_date'],
+      where: 'package_name = ?',
+      whereArgs: [packageName],
+      limit: 1,
+    );
+    final today = _todayKey();
+    final existingExtension =
+        existing.isNotEmpty && existing.first['extended_date'] == today
+        ? _asInt(existing.first['extended_minutes'])
+        : 0;
+
     await _db.insert('app_limits', {
       'package_name': packageName,
       'app_name': appName,
       'allowed_minutes': allowedMinutes,
+      'extended_minutes': existingExtension,
+      'extended_date': existingExtension > 0 ? today : null,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -936,10 +1115,25 @@ class ChildData {
         'Inserting: package=$packageName, appName=$appName, minutes=$allowedMinutes',
       );
 
+      final existing = await _db.query(
+        'app_limits',
+        columns: ['extended_minutes', 'extended_date'],
+        where: 'package_name = ?',
+        whereArgs: [packageName],
+        limit: 1,
+      );
+      final today = _todayKey();
+      final existingExtension =
+          existing.isNotEmpty && existing.first['extended_date'] == today
+          ? _asInt(existing.first['extended_minutes'])
+          : 0;
+
       batch.insert('app_limits', {
         'package_name': packageName,
         'app_name': appName,
         'allowed_minutes': allowedMinutes,
+        'extended_minutes': existingExtension,
+        'extended_date': existingExtension > 0 ? today : null,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
@@ -993,6 +1187,43 @@ class ChildData {
     return rows.first['count'] as int;
   }
 }
+
+class AdditionalTimePurchaseResult {
+  final bool success;
+  final String? message;
+  final int remainingPoints;
+  final int additionalMinutes;
+  final int updatedLimitMinutes;
+
+  const AdditionalTimePurchaseResult._({
+    required this.success,
+    this.message,
+    this.remainingPoints = 0,
+    this.additionalMinutes = 0,
+    this.updatedLimitMinutes = 0,
+  });
+
+  const AdditionalTimePurchaseResult.success({
+    required int remainingPoints,
+    required int additionalMinutes,
+    required int updatedLimitMinutes,
+  }) : this._(
+         success: true,
+         remainingPoints: remainingPoints,
+         additionalMinutes: additionalMinutes,
+         updatedLimitMinutes: updatedLimitMinutes,
+       );
+
+  const AdditionalTimePurchaseResult.failure({required String message})
+    : this._(success: false, message: message);
+}
+
+class _AdditionalTimePurchaseException implements Exception {
+  final String message;
+
+  const _AdditionalTimePurchaseException(this.message);
+}
+
 //  PARENT DATA
 // ═══════════════════════════════════════════════════════════════════════
 

@@ -120,6 +120,23 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     return '<1m';
   }
 
+  void _showBuyAdditionalTimeSheet({String? appName, String? packageName}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.62),
+      builder: (context) => BuyAdditionalTimeDialog(
+        appName: appName,
+        packageName: packageName,
+        onPurchaseComplete: () {
+          _loadAppLimits();
+          _loadSettings();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -293,12 +310,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => const BuyAdditionalTimeDialog(),
-                        );
-                      },
+                      onTap: () => _showBuyAdditionalTimeSheet(),
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
@@ -481,13 +493,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           const SizedBox(width: 15),
           if (hasLimit)
             GestureDetector(
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (context) =>
-                      BuyAdditionalTimeDialog(appName: displayName),
-                );
-              },
+              onTap: () => _showBuyAdditionalTimeSheet(
+                appName: displayName,
+                packageName: app.packageName,
+              ),
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
@@ -556,13 +565,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           ),
           const SizedBox(width: 15),
           GestureDetector(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) =>
-                    BuyAdditionalTimeDialog(appName: displayName),
-              );
-            },
+            onTap: () => _showBuyAdditionalTimeSheet(
+              appName: displayName,
+              packageName: packageName,
+            ),
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: const BoxDecoration(
