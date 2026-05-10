@@ -1,11 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/services/app_database.dart';
+import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/theme/app_colors.dart';
 
-class ChildProfileScreen extends StatelessWidget {
+class ChildProfileScreen extends StatefulWidget {
   const ChildProfileScreen({super.key});
 
   @override
+  State<ChildProfileScreen> createState() => _ChildProfileScreenState();
+}
+
+class _ChildProfileScreenState extends State<ChildProfileScreen> {
+  final _db = AppDatabase();
+  String _childName = 'Child';
+  String? _profileImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await _db.child.getChildProfile();
+    final childName = await _db.child.getChildDisplayName();
+    if (!mounted) return;
+    setState(() {
+      _childName = childName;
+      _profileImage = profile?['profile_image']?.toString();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final imageUrl = _profileImageUrl(_profileImage);
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
@@ -46,12 +75,26 @@ class ChildProfileScreen extends StatelessWidget {
                           color: Color(0xFF010304), // Scaffold background
                           shape: BoxShape.circle,
                         ),
-                        child: const CircleAvatar(
+                        child: CircleAvatar(
                           radius: 56,
-                          backgroundColor: Color(0xFFE8AEB7), // Light pinkish background for avatar
+                          backgroundColor: Color(
+                            0xFFE8AEB7,
+                          ), // Light pinkish background for avatar
                           // Using a network image as placeholder to match the provided screenshot
-                          backgroundImage: NetworkImage('https://images.unsplash.com/photo-1485206412256-701ccc5b93ca?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80'),
-                          child: Icon(Icons.person, color: Colors.transparent, size: 50),
+                          backgroundImage: imageUrl == null
+                              ? null
+                              : NetworkImage(imageUrl),
+                          child: imageUrl == null
+                              ? const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 50,
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  color: Colors.transparent,
+                                  size: 50,
+                                ),
                         ),
                       ),
                       Positioned(
@@ -62,9 +105,16 @@ class ChildProfileScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: const Color(0xFF2C3246),
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF010304), width: 2),
+                            border: Border.all(
+                              color: const Color(0xFF010304),
+                              width: 2,
+                            ),
                           ),
-                          child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                          child: const Icon(
+                            Icons.lock,
+                            color: Colors.white,
+                            size: 14,
+                          ),
                         ),
                       ),
                     ],
@@ -74,8 +124,8 @@ class ChildProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             // Name
-            const Text(
-              'Alex Johnson',
+            Text(
+              _childName,
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -90,15 +140,12 @@ class ChildProfileScreen extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   'Connected with Parent',
-                  style: TextStyle(
-                    color: Colors.grey.shade400,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                 ),
               ],
             ),
             const SizedBox(height: 32),
-            
+
             // Safety Settings Card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -114,7 +161,9 @@ class ChildProfileScreen extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.05),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,9 +219,9 @@ class ChildProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Bottom links card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -188,15 +237,36 @@ class ChildProfileScreen extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.05),
+                  ),
                 ),
                 child: Column(
                   children: [
-                    _buildLinkRow(icon: Icons.help_outline, title: 'Why this app helps me stay safe'),
-                    Divider(color: Colors.white.withValues(alpha: 0.1), height: 1, indent: 20, endIndent: 20),
-                    _buildLinkRow(icon: Icons.privacy_tip_outlined, title: 'Privacy information'),
-                    Divider(color: Colors.white.withValues(alpha: 0.1), height: 1, indent: 20, endIndent: 20),
-                    _buildLinkRow(icon: Icons.support_agent, title: 'Help & Support'),
+                    _buildLinkRow(
+                      icon: Icons.help_outline,
+                      title: 'Why this app helps me stay safe',
+                    ),
+                    Divider(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      height: 1,
+                      indent: 20,
+                      endIndent: 20,
+                    ),
+                    _buildLinkRow(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Privacy information',
+                    ),
+                    Divider(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      height: 1,
+                      indent: 20,
+                      endIndent: 20,
+                    ),
+                    _buildLinkRow(
+                      icon: Icons.support_agent,
+                      title: 'Help & Support',
+                    ),
                   ],
                 ),
               ),
@@ -227,7 +297,11 @@ class ChildProfileScreen extends StatelessWidget {
             color: iconBgColor ?? const Color(0xFFB5C9FF),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Icon(icon, color: iconColor ?? const Color(0xFF1E3A8A), size: 24),
+          child: Icon(
+            icon,
+            color: iconColor ?? const Color(0xFF1E3A8A),
+            size: 24,
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -245,10 +319,7 @@ class ChildProfileScreen extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
               ),
             ],
           ),
@@ -287,6 +358,16 @@ class ChildProfileScreen extends StatelessWidget {
       onTap: () {},
     );
   }
+
+  String? _profileImageUrl(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    final path = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    return '${AuthService.baseUrl}$path';
+  }
 }
 
 class _TopCurveClipper extends CustomClipper<Path> {
@@ -295,7 +376,11 @@ class _TopCurveClipper extends CustomClipper<Path> {
     var path = Path();
     path.lineTo(0, size.height - 60);
     path.quadraticBezierTo(
-        size.width / 2, size.height + 60, size.width, size.height - 60);
+      size.width / 2,
+      size.height + 60,
+      size.width,
+      size.height - 60,
+    );
     path.lineTo(size.width, 0);
     path.close();
     return path;

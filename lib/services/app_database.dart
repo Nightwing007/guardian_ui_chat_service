@@ -37,7 +37,7 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -154,6 +154,7 @@ class AppDatabase {
 
     await _createInstalledAppsTable(db);
     await _createLocalAppUsageTable(db);
+    await _createChildProfileTable(db);
   }
 
   Future<void> _createTasksTable(Database db) async {
@@ -274,6 +275,9 @@ class AppDatabase {
       await _addColumnIfMissing(db, 'tasks', 'updated', 'TEXT');
       await _addColumnIfMissing(db, 'tasks', 'child_hash', 'TEXT');
     }
+    if (oldVersion < 9) {
+      await _createChildProfileTable(db);
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -315,6 +319,32 @@ class AppDatabase {
         child_hash TEXT NOT NULL,
         synced INTEGER NOT NULL DEFAULT 0,
         UNIQUE(package_name, child_hash)
+      )
+    ''');
+  }
+
+  Future<void> _createChildProfileTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS child_profile (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        remote_id INTEGER,
+        child_hash TEXT NOT NULL,
+        first_name TEXT NOT NULL DEFAULT '',
+        last_name TEXT NOT NULL DEFAULT '',
+        date_of_birth TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        date_joined TEXT,
+        profile_image TEXT,
+        daily_screen_time_limit REAL,
+        exam_mode INTEGER NOT NULL DEFAULT 0,
+        total_points INTEGER NOT NULL DEFAULT 0,
+        restricted_apps TEXT NOT NULL DEFAULT '[]',
+        restricted_sites TEXT NOT NULL DEFAULT '[]',
+        exam_mode_apps TEXT NOT NULL DEFAULT '[]',
+        public_key TEXT,
+        private_key TEXT,
+        raw_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL
       )
     ''');
   }
@@ -407,6 +437,124 @@ class ChildData {
     };
   }
 
+  Future<void> upsertChildProfile(Map<String, dynamic> profile) async {
+    final childHash = profile['child_hash']?.toString().trim() ?? '';
+    if (childHash.isEmpty) return;
+
+    final firstName = profile['first_name']?.toString().trim() ?? '';
+    final lastName = profile['last_name']?.toString().trim() ?? '';
+    final totalPoints = profile.containsKey('total_points')
+        ? _asInt(profile['total_points'])
+        : await getTotalPoints();
+    final screenTimeLimit = _asNullableDouble(
+      profile['daily_screen_time_limit'],
+    );
+    final safeProfile = Map<String, dynamic>.from(profile)..remove('password');
+
+    await _db.insert('child_profile', {
+      'id': 1,
+      'remote_id': _asNullableInt(profile['id']),
+      'child_hash': childHash,
+      'first_name': firstName,
+      'last_name': lastName,
+      'date_of_birth': profile['date_of_birth']?.toString(),
+      'is_active': profile['is_active'] == false ? 0 : 1,
+      'date_joined': profile['date_joined']?.toString(),
+      'profile_image': profile['profile_image']?.toString(),
+      'daily_screen_time_limit': screenTimeLimit,
+      'exam_mode': profile['exam_mode'] == true ? 1 : 0,
+      'total_points': totalPoints,
+      'restricted_apps': jsonEncode(profile['restricted_apps'] ?? []),
+      'restricted_sites': jsonEncode(profile['restricted_sites'] ?? []),
+      'exam_mode_apps': jsonEncode(profile['exam_mode_apps'] ?? []),
+      'public_key': profile['public_key']?.toString(),
+      'private_key': profile['private_key']?.toString(),
+      'raw_json': jsonEncode(safeProfile),
+      'fetched_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+    final childName = _fullName(firstName, lastName);
+    final settingsValues = <String, Object?>{
+      'child_hash': childHash,
+      'child_name': childName.isEmpty ? null : childName,
+      'total_points': totalPoints,
+    };
+
+    final updated = await _db.update(
+      'child_settings',
+      settingsValues,
+      where: 'id = 1',
+    );
+    if (updated == 0) {
+      await _db.insert('child_settings', {'id': 1, ...settingsValues});
+    }
+  }
+
+  Future<Map<String, dynamic>?> getChildProfile() async {
+    final rows = await _db.query('child_profile', where: 'id = 1', limit: 1);
+    if (rows.isEmpty) return null;
+
+    final row = rows.first;
+    final rawJson = row['raw_json'] as String?;
+    if (rawJson != null && rawJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawJson);
+        if (decoded is Map<String, dynamic>) {
+          return {
+            ...decoded,
+            'display_name': _fullName(
+              decoded['first_name']?.toString() ?? '',
+              decoded['last_name']?.toString() ?? '',
+            ),
+          };
+        }
+        if (decoded is Map) {
+          final profile = Map<String, dynamic>.from(decoded);
+          profile['display_name'] = _fullName(
+            profile['first_name']?.toString() ?? '',
+            profile['last_name']?.toString() ?? '',
+          );
+          return profile;
+        }
+      } catch (_) {
+        // Fall back to normalized columns below.
+      }
+    }
+
+    final firstName = row['first_name']?.toString() ?? '';
+    final lastName = row['last_name']?.toString() ?? '';
+    return {
+      'id': row['remote_id'],
+      'child_hash': row['child_hash'],
+      'first_name': firstName,
+      'last_name': lastName,
+      'display_name': _fullName(firstName, lastName),
+      'date_of_birth': row['date_of_birth'],
+      'is_active': row['is_active'] == 1,
+      'date_joined': row['date_joined'],
+      'profile_image': row['profile_image'],
+      'daily_screen_time_limit': row['daily_screen_time_limit'],
+      'exam_mode': row['exam_mode'] == 1,
+      'total_points': row['total_points'],
+      'restricted_apps': _decodeJsonList(row['restricted_apps']),
+      'restricted_sites': _decodeJsonList(row['restricted_sites']),
+      'exam_mode_apps': _decodeJsonList(row['exam_mode_apps']),
+      'public_key': row['public_key'],
+      'private_key': row['private_key'],
+      'fetched_at': row['fetched_at'],
+    };
+  }
+
+  Future<String> getChildDisplayName() async {
+    final profile = await getChildProfile();
+    final profileName = profile?['display_name']?.toString().trim() ?? '';
+    if (profileName.isNotEmpty) return profileName;
+
+    final settings = await getLinkedChildSettings();
+    final settingsName = settings['childName']?.trim() ?? '';
+    return settingsName.isEmpty ? 'Child' : settingsName;
+  }
+
   /// How much time the child still has left today.
   Future<Duration> getTimeRemaining() async {
     final allowedMin = await getTotalAllowedScreenTimeMinutes();
@@ -424,14 +572,43 @@ class ChildData {
   }
 
   Future<void> setTotalPoints(int points) async {
-    await _db.update('child_settings', {
+    final updated = await _db.update('child_settings', {
       'total_points': points,
     }, where: 'id = 1');
+    if (updated == 0) {
+      await _db.insert('child_settings', {'id': 1, 'total_points': points});
+    }
+
+    await _updateCachedProfilePoints(points);
   }
 
   Future<void> addPoints(int amount) async {
     final current = await getTotalPoints();
     await setTotalPoints(current + amount);
+  }
+
+  Future<void> _updateCachedProfilePoints(int points) async {
+    final rows = await _db.query('child_profile', where: 'id = 1', limit: 1);
+    if (rows.isEmpty) return;
+
+    final row = rows.first;
+    final values = <String, Object?>{'total_points': points};
+    final rawJson = row['raw_json'] as String?;
+    if (rawJson != null && rawJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawJson);
+        if (decoded is Map) {
+          final profile = Map<String, dynamic>.from(decoded);
+          profile['total_points'] = points;
+          profile.remove('password');
+          values['raw_json'] = jsonEncode(profile);
+        }
+      } catch (_) {
+        // Keep normalized points updated even if the raw payload is invalid.
+      }
+    }
+
+    await _db.update('child_profile', values, where: 'id = 1');
   }
 
   // ── Tasks (SQLite) ────────────────────────────────────────────────
@@ -533,12 +710,34 @@ class ChildData {
     return fallback;
   }
 
+  static double? _asNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
   static int? _asNullableInt(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;
     if (value is num) return value.toInt();
     if (value is String) return int.tryParse(value);
     return null;
+  }
+
+  static String _fullName(String firstName, String lastName) {
+    return '$firstName $lastName'.trim();
+  }
+
+  static List<dynamic> _decodeJsonList(dynamic value) {
+    if (value is List) return value;
+    if (value is! String || value.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(value);
+      return decoded is List ? decoded : [];
+    } catch (_) {
+      return [];
+    }
   }
 
   int completedTasksSync(List<TaskModel> tasks) =>

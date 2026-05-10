@@ -556,6 +556,46 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> getChildProfile({
+    required String childHash,
+    required String deviceToken,
+  }) async {
+    debugPrint('AuthService.getChildProfile called for $childHash');
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/child/$childHash/profile/'),
+            headers: {'X-Device-Token': deviceToken},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint('getChildProfile status: ${response.statusCode}');
+      debugPrint('getChildProfile body: ${response.body}');
+
+      final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+
+      if (response.statusCode == 200 && data is Map) {
+        final profile = data['profile'] is Map ? data['profile'] : data;
+        return {
+          'success': true,
+          'data': Map<String, dynamic>.from(profile as Map),
+        };
+      }
+
+      return {
+        'success': false,
+        'message': data is Map
+            ? data['error'] ?? 'Failed to fetch child profile'
+            : 'Failed to fetch child profile',
+      };
+    } catch (e, stackTrace) {
+      debugPrint('getChildProfile error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Network error ($e)'};
+    }
+  }
+
   Future<Map<String, dynamic>> getChildUsage({
     required String email,
     required String password,

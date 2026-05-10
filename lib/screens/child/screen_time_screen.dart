@@ -9,6 +9,7 @@ import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/child/app_usage_service.dart';
 import 'package:myapp/services/child/app_icon_cache.dart';
 import 'package:myapp/services/session_service.dart';
+
 class ScreenTimeScreen extends StatefulWidget {
   final int currentNavIndex;
   final ValueChanged<int> onNavTap;
@@ -67,10 +68,21 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       await AppDatabase().child.clearAppLimits();
 
       final session = await SessionService.getChildSession();
-      final deviceToken = session['deviceToken'] as String?;
-      final childHash = session['childHash'] as String?;
+      final deviceToken = session['deviceToken'];
+      final childHash = session['childHash'];
 
       if (deviceToken == null || childHash == null) return;
+
+      final profileResult = await AuthService().getChildProfile(
+        childHash: childHash,
+        deviceToken: deviceToken,
+      );
+      if (profileResult['success'] == true && profileResult['data'] is Map) {
+        await AppDatabase().child.upsertChildProfile(
+          Map<String, dynamic>.from(profileResult['data'] as Map),
+        );
+        await _loadSettings();
+      }
 
       final result = await AuthService().getChildAppLimits(
         childHash: childHash,
@@ -107,6 +119,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     if (minutes > 0) return '${minutes}m';
     return '<1m';
   }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -123,7 +136,11 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 24),
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Colors.white,
+              size: 24,
+            ),
             onPressed: () => Navigator.of(context).pop(),
           ),
           title: Column(
@@ -151,7 +168,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         body: SafeArea(
           bottom: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 20.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -217,7 +237,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.tertiaryGradientStart, AppColors.tertiaryGradientEnd],
+          colors: [
+            AppColors.tertiaryGradientStart,
+            AppColors.tertiaryGradientEnd,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -291,7 +314,9 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                     ),
                   ],
                 ),
-                progressColor: percent >= 1.0 ? Colors.redAccent : AppColors.accentBlue,
+                progressColor: percent >= 1.0
+                    ? Colors.redAccent
+                    : AppColors.accentBlue,
                 backgroundColor: const Color(0xFF1E2D4A),
                 circularStrokeCap: CircularStrokeCap.round,
               ),
@@ -334,7 +359,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+            colors: [
+              AppColors.primaryGradientStart,
+              AppColors.primaryGradientEnd,
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -353,7 +381,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+            colors: [
+              AppColors.primaryGradientStart,
+              AppColors.primaryGradientEnd,
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -362,10 +393,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         child: Center(
           child: Text(
             'No apps with limits set yet',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: AppColors.textGrey,
-            ),
+            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textGrey),
           ),
         ),
       );
@@ -374,7 +402,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+          colors: [
+            AppColors.primaryGradientStart,
+            AppColors.primaryGradientEnd,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -407,13 +438,14 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
 
     final allowedMinutes = _appLimits[app.packageName];
     final usedHours = app.totalTimeInForeground.inMinutes / 60.0;
-    
+
     String timeString;
     bool hasLimit = allowedMinutes != null;
-    
+
     if (hasLimit) {
       final allowedHours = allowedMinutes / 60;
-      timeString = '${usedHours.toStringAsFixed(1)}hr / ${allowedHours.toStringAsFixed(1)}hr';
+      timeString =
+          '${usedHours.toStringAsFixed(1)}hr / ${allowedHours.toStringAsFixed(1)}hr';
     } else {
       timeString = _formatDuration(app.totalTimeInForeground);
     }
@@ -448,22 +480,23 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           ),
           const SizedBox(width: 15),
           if (hasLimit)
-          GestureDetector(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => BuyAdditionalTimeDialog(appName: displayName),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: AppColors.sosRed,
-                shape: BoxShape.circle,
+            GestureDetector(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) =>
+                      BuyAdditionalTimeDialog(appName: displayName),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: AppColors.sosRed,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 16),
               ),
-              child: const Icon(Icons.add, color: Colors.white, size: 16),
             ),
-          ),
         ],
       ),
     );
@@ -472,12 +505,14 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   Widget _buildAppLimitItem({required String packageName}) {
     final allowedMinutes = _appLimits[packageName] ?? 0;
     final child = _db.child;
-    final usageApp = child.appUsageList.where((a) => a.packageName == packageName).firstOrNull;
-    
+    final usageApp = child.appUsageList
+        .where((a) => a.packageName == packageName)
+        .firstOrNull;
+
     String displayName = packageName.split('.').last;
     if (usageApp != null && usageApp.appName.isNotEmpty) {
-      displayName = usageApp.appName.contains('.') 
-          ? usageApp.appName.split('.').last 
+      displayName = usageApp.appName.contains('.')
+          ? usageApp.appName.split('.').last
           : usageApp.appName;
     }
 
@@ -485,7 +520,8 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     if (usageApp != null) {
       final usedHours = usageApp.totalTimeInForeground.inMinutes / 60.0;
       final allowedHours = allowedMinutes / 60;
-      timeString = '${usedHours.toStringAsFixed(1)}hr / ${allowedHours.toStringAsFixed(1)}hr';
+      timeString =
+          '${usedHours.toStringAsFixed(1)}hr / ${allowedHours.toStringAsFixed(1)}hr';
     } else {
       timeString = '0hr / ${(allowedMinutes / 60).toStringAsFixed(1)}hr';
     }
@@ -523,7 +559,8 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
             onTap: () {
               showDialog(
                 context: context,
-                builder: (context) => BuyAdditionalTimeDialog(appName: displayName),
+                builder: (context) =>
+                    BuyAdditionalTimeDialog(appName: displayName),
               );
             },
             child: Container(

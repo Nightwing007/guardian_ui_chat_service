@@ -22,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _db = AppDatabase();
   final _appIconCache = AppIconCache();
   int _allowedScreenTimeMinutes = 240;
+  String _childName = 'Child';
   bool _isSyncingCloud = false;
 
   @override
@@ -53,7 +54,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _loadSettings() async {
     final allowed = await _db.child.getTotalAllowedScreenTimeMinutes();
-    if (mounted) setState(() => _allowedScreenTimeMinutes = allowed);
+    final childName = await _db.child.getChildDisplayName();
+    if (mounted) {
+      setState(() {
+        _allowedScreenTimeMinutes = allowed;
+        _childName = childName;
+      });
+    }
   }
 
   Future<void> _syncCloudDb() async {
@@ -63,13 +70,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final synced = await InstalledAppsSyncService()
           .syncLocalInstalledAppsToCloud();
-      
+
       // Also sync tasks from cloud
       final settings = await _db.child.getLinkedChildSettings();
       final deviceToken = settings['deviceToken'];
       final childHash = settings['childHash'];
-      
+
       if (deviceToken != null && childHash != null) {
+        final profileResult = await AuthService().getChildProfile(
+          childHash: childHash,
+          deviceToken: deviceToken,
+        );
+        if (profileResult['success'] == true && profileResult['data'] is Map) {
+          await _db.child.upsertChildProfile(
+            Map<String, dynamic>.from(profileResult['data'] as Map),
+          );
+          await _loadSettings();
+        }
+
         final result = await AuthService().getChildTasks(
           childHash: childHash,
           deviceToken: deviceToken,
@@ -82,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
         }
       }
-      
+
       await _refreshUsage();
 
       if (!mounted) return;
@@ -182,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Row(
                   children: [
                     Text(
-                      'Hi Alex ',
+                      'Hi ${_firstName(_childName)} ',
                       style: GoogleFonts.poppins(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -227,6 +245,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  String _firstName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'Child';
+    return trimmed.split(RegExp(r'\s+')).first;
   }
 
   /// Builds the motivational quote card showing a gradient background

@@ -104,8 +104,12 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _onTaskCompleted(int taskId) async {
+    final task = _taskById(taskId);
+    if (task == null || task['state'] == 'completed') return;
+
+    final rewardPoints = _asInt(task['reward_points'], fallback: 3);
     await _db.child.updateTaskState(taskId, TaskState.completed);
-    await _db.child.addPoints(3);
+    await _db.child.addPoints(rewardPoints);
     await _updateRemoteTaskState(taskId, 'completed');
     await _loadData();
   }
@@ -116,10 +120,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _updateRemoteTaskState(int localTaskId, String state) async {
-    final task = _tasks.cast<Map<String, dynamic>?>().firstWhere(
-      (task) => task?['id'] == localTaskId,
-      orElse: () => null,
-    );
+    final task = _taskById(localTaskId);
     final remoteTaskId = task?['remote_id'] as int?;
     if (remoteTaskId == null) return;
 
@@ -141,6 +142,13 @@ class _TasksScreenState extends State<TasksScreen> {
     } catch (e) {
       debugPrint('Remote task state update error: $e');
     }
+  }
+
+  Map<String, dynamic>? _taskById(int taskId) {
+    for (final task in _tasks) {
+      if (task['id'] == taskId) return task;
+    }
+    return null;
   }
 
   int get _completedTasks =>

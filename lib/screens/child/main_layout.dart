@@ -59,6 +59,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     await AppBlockerService().startMonitoring();
     InstalledAppsSyncService().syncInstalledApps();
     InstalledAppsSyncService().startPackageChangeWatcher();
+    await _syncChildProfileFromCloud();
     _syncAppLimitsFromCloud();
     if (mounted) {
       setState(() => _dbReady = true);
@@ -66,11 +67,37 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _syncChildProfileFromCloud() async {
+    try {
+      final session = await SessionService.getChildSession();
+      final deviceToken = session['deviceToken'];
+      final childHash = session['childHash'];
+
+      if (deviceToken == null || childHash == null) {
+        debugPrint('Child profile sync skipped: missing credentials');
+        return;
+      }
+
+      final result = await AuthService().getChildProfile(
+        childHash: childHash,
+        deviceToken: deviceToken,
+      );
+
+      if (result['success'] == true && result['data'] is Map) {
+        await AppDatabase().child.upsertChildProfile(
+          Map<String, dynamic>.from(result['data'] as Map),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error syncing child profile: $e');
+    }
+  }
+
   Future<void> _syncAppLimitsFromCloud() async {
     try {
       final session = await SessionService.getChildSession();
-      final deviceToken = session['deviceToken'] as String?;
-      final childHash = session['childHash'] as String?;
+      final deviceToken = session['deviceToken'];
+      final childHash = session['childHash'];
 
       if (deviceToken == null || childHash == null) {
         print('App limits sync skipped: missing credentials');
