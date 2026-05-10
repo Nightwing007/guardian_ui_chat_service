@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/child/app_blocker_service.dart';
 import 'package:myapp/services/session_service.dart';
 import 'package:myapp/theme/app_colors.dart';
 
@@ -25,6 +26,7 @@ class BuyAdditionalTimeDialog extends StatefulWidget {
 class _BuyAdditionalTimeDialogState extends State<BuyAdditionalTimeDialog> {
   final _db = AppDatabase();
   final _auth = AuthService();
+  final _appBlockerService = AppBlockerService();
 
   static const int _minutesPerPoint = 10;
   static const Color _matteBlack = Color(0xFF101012);
@@ -362,30 +364,32 @@ class _BuyAdditionalTimeDialogState extends State<BuyAdditionalTimeDialog> {
       return;
     }
 
+    await _refreshLocalBlockingState();
+
     final session = await SessionService.getChildSession();
     final childHash = session['childHash'];
     final deviceToken = session['deviceToken'];
 
     if (childHash == null || deviceToken == null) {
       await _rollbackPurchase(packageName, result);
+      await _refreshLocalBlockingState();
       if (!mounted) return;
       setState(() => _isPurchasing = false);
       _showMessage('Could not sync points. Please reconnect and try again.');
       return;
     }
 
-    final cloudResult = await _auth.spendChildPoints(
+    final cloudResult = await _auth.updateChildPoints(
       childHash: childHash,
       deviceToken: deviceToken,
-      points: _pointsToSpend,
-      packageName: packageName,
-      additionalMinutes: result.additionalMinutes,
+      delta: -_pointsToSpend,
     );
 
     if (!mounted) return;
 
     if (cloudResult['success'] != true) {
       await _rollbackPurchase(packageName, result);
+      await _refreshLocalBlockingState();
       if (!mounted) return;
       setState(() => _isPurchasing = false);
       _showMessage(
@@ -400,7 +404,10 @@ class _BuyAdditionalTimeDialogState extends State<BuyAdditionalTimeDialog> {
     final message =
         'Added ${_formatMinutes(result.additionalMinutes)} for today.';
 
-    await _syncReturnedPointBalance(cloudResult['data']);
+    await _syncReturnedPointBalance(
+      cloudResult['data'],
+      fallbackPoints: result.remainingPoints,
+    );
 
     widget.onPurchaseComplete?.call();
     navigator.pop();
@@ -424,16 +431,23 @@ class _BuyAdditionalTimeDialogState extends State<BuyAdditionalTimeDialog> {
     );
   }
 
-  Future<void> _syncReturnedPointBalance(dynamic data) async {
-    if (data is! Map) return;
+  Future<void> _refreshLocalBlockingState() async {
+    await _appBlockerService.syncNativeLimitsFromDatabase();
+    await _appBlockerService.refreshEnforcementFromDatabase();
+  }
 
-    final totalPoints =
-        _readInt(data['total_points']) ??
-        _readInt(data['remaining_points']) ??
-        _readInt(data['points']);
-    if (totalPoints == null) return;
-
-    await _db.child.setTotalPoints(totalPoints);
+  Future<void> _syncReturnedPointBalance(
+    dynamic data, {
+    required int fallbackPoints,
+  }) async {
+    int? totalPoints;
+    if (data is Map) {
+      totalPoints =
+          _readInt(data['total_points']) ??
+          _readInt(data['remaining_points']) ??
+          _readInt(data['points']);
+    }
+    await _db.child.setTotalPoints(totalPoints ?? fallbackPoints);
   }
 
   int? _readInt(dynamic value) {

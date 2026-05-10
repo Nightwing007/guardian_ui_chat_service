@@ -37,7 +37,7 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 11,
+      version: 12,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -95,11 +95,10 @@ class AppDatabase {
       CREATE TABLE app_limits (
         package_name TEXT PRIMARY KEY,
         app_name TEXT NOT NULL,
-        allowed_minutes INTEGER NOT NULL,
-        extended_minutes INTEGER NOT NULL DEFAULT 0,
-        extended_date TEXT
+        allowed_minutes INTEGER NOT NULL
       )
     ''');
+    await _createAdditionalAppTimeTable(db);
 
     // ── chat_messages ──
     await db.execute('''
@@ -293,6 +292,9 @@ class AppDatabase {
     if (oldVersion < 11) {
       await _createEnforcedAppBlocksTable(db);
     }
+    if (oldVersion < 12) {
+      await _createAdditionalAppTimeTable(db);
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -373,6 +375,17 @@ class AppDatabase {
         private_key TEXT,
         raw_json TEXT NOT NULL,
         fetched_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createAdditionalAppTimeTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS additional_app_time (
+        package_name TEXT NOT NULL,
+        additional_minutes INTEGER NOT NULL,
+        added_date TEXT NOT NULL,
+        PRIMARY KEY (package_name, added_date)
       )
     ''');
   }
@@ -633,6 +646,12 @@ class ChildData {
 
     try {
       await _db.transaction((txn) async {
+        await txn.delete(
+          'additional_app_time',
+          where: 'added_date <> ?',
+          whereArgs: [today],
+        );
+
         final pointRows = await txn.query(
           'child_settings',
           columns: ['total_points'],
@@ -663,22 +682,28 @@ class ChildData {
 
         final limit = limitRows.first;
         final baseLimit = _asInt(limit['allowed_minutes']);
-        final existingExtension = limit['extended_date'] == today
-            ? _asInt(limit['extended_minutes'])
-            : 0;
-        final nextExtension = existingExtension + additionalMinutes;
-        updatedLimitMinutes = baseLimit + nextExtension;
+        final additionalRows = await txn.query(
+          'additional_app_time',
+          columns: ['additional_minutes'],
+          where: 'package_name = ? AND added_date = ?',
+          whereArgs: [trimmedPackage, today],
+          limit: 1,
+        );
+        final existingAdditional = additionalRows.isEmpty
+            ? 0
+            : _asInt(additionalRows.first['additional_minutes']);
+        final nextAdditional = existingAdditional + additionalMinutes;
+        updatedLimitMinutes = baseLimit + nextAdditional;
         updatedPoints = currentPoints - pointsToSpend;
 
         await txn.update('child_settings', {
           'total_points': updatedPoints,
         }, where: 'id = 1');
-        await txn.update(
-          'app_limits',
-          {'extended_minutes': nextExtension, 'extended_date': today},
-          where: 'package_name = ?',
-          whereArgs: [trimmedPackage],
-        );
+        await txn.insert('additional_app_time', {
+          'package_name': trimmedPackage,
+          'additional_minutes': nextAdditional,
+          'added_date': today,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       });
     } on _AdditionalTimePurchaseException catch (e) {
       return AdditionalTimePurchaseResult.failure(message: e.message);
@@ -708,6 +733,12 @@ class ChildData {
     final today = _todayKey();
 
     await _db.transaction((txn) async {
+      await txn.delete(
+        'additional_app_time',
+        where: 'added_date <> ?',
+        whereArgs: [today],
+      );
+
       final pointRows = await txn.query(
         'child_settings',
         columns: ['total_points'],
@@ -723,24 +754,29 @@ class ChildData {
         'total_points': restoredPoints,
       }, where: 'id = 1');
 
-      final limitRows = await txn.query(
-        'app_limits',
-        where: 'package_name = ?',
-        whereArgs: [trimmedPackage],
+      final additionalRows = await txn.query(
+        'additional_app_time',
+        columns: ['additional_minutes'],
+        where: 'package_name = ? AND added_date = ?',
+        whereArgs: [trimmedPackage, today],
         limit: 1,
       );
-      if (limitRows.isNotEmpty && limitRows.first['extended_date'] == today) {
-        final currentExtension = _asInt(limitRows.first['extended_minutes']);
-        final nextExtension = currentExtension - minutesToRemove;
-        await txn.update(
-          'app_limits',
-          {
-            'extended_minutes': nextExtension > 0 ? nextExtension : 0,
-            'extended_date': nextExtension > 0 ? today : null,
-          },
-          where: 'package_name = ?',
-          whereArgs: [trimmedPackage],
-        );
+      if (additionalRows.isNotEmpty) {
+        final currentAdditional = _asInt(additionalRows.first['additional_minutes']);
+        final nextAdditional = currentAdditional - minutesToRemove;
+        if (nextAdditional > 0) {
+          await txn.insert('additional_app_time', {
+            'package_name': trimmedPackage,
+            'additional_minutes': nextAdditional,
+            'added_date': today,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        } else {
+          await txn.delete(
+            'additional_app_time',
+            where: 'package_name = ? AND added_date = ?',
+            whereArgs: [trimmedPackage, today],
+          );
+        }
       }
     });
 
@@ -947,31 +983,30 @@ class ChildData {
   /// Returns the allowed minutes for a specific app, or `null` if no
   /// limit has been set for that package.
   Future<int?> getAppLimit(String packageName) async {
+    await _clearExpiredAdditionalAppTime();
     final rows = await _db.query(
       'app_limits',
       where: 'package_name = ?',
       whereArgs: [packageName],
     );
     if (rows.isEmpty) return null;
-    return _effectiveLimitMinutes(rows.first);
+    final baseMinutes = _asInt(rows.first['allowed_minutes']);
+    final additionalByPackage = await _getTodayAdditionalMinutesByPackage();
+    final additionalMinutes = additionalByPackage[packageName] ?? 0;
+    return baseMinutes + additionalMinutes;
   }
 
   /// Returns all per-app limits as a map: packageName → allowedMinutes.
   Future<Map<String, int>> getAllAppLimits() async {
+    await _clearExpiredAdditionalAppTime();
     final rows = await _db.query('app_limits');
+    final additionalByPackage = await _getTodayAdditionalMinutesByPackage();
     return {
       for (final row in rows)
-        row['package_name'] as String: _effectiveLimitMinutes(row),
+        row['package_name'] as String:
+            _asInt(row['allowed_minutes']) +
+            (additionalByPackage[row['package_name'] as String] ?? 0),
     };
-  }
-
-  int _effectiveLimitMinutes(Map<String, Object?> row) {
-    final baseMinutes = _asInt(row['allowed_minutes']);
-    final extensionDate = row['extended_date']?.toString();
-    final extensionMinutes = extensionDate == _todayKey()
-        ? _asInt(row['extended_minutes'])
-        : 0;
-    return baseMinutes + extensionMinutes;
   }
 
   Future<void> setAppLimit(
@@ -979,25 +1014,10 @@ class ChildData {
     String appName,
     int allowedMinutes,
   ) async {
-    final existing = await _db.query(
-      'app_limits',
-      columns: ['extended_minutes', 'extended_date'],
-      where: 'package_name = ?',
-      whereArgs: [packageName],
-      limit: 1,
-    );
-    final today = _todayKey();
-    final existingExtension =
-        existing.isNotEmpty && existing.first['extended_date'] == today
-        ? _asInt(existing.first['extended_minutes'])
-        : 0;
-
     await _db.insert('app_limits', {
       'package_name': packageName,
       'app_name': appName,
       'allowed_minutes': allowedMinutes,
-      'extended_minutes': existingExtension,
-      'extended_date': existingExtension > 0 ? today : null,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -1156,6 +1176,7 @@ class ChildData {
 
   Future<void> saveAppLimits(List<Map<String, dynamic>> limits) async {
     print('saveAppLimits called with ${limits.length} items');
+    await _clearExpiredAdditionalAppTime();
 
     final batch = _db.batch();
 
@@ -1185,25 +1206,10 @@ class ChildData {
         'Inserting: package=$packageName, appName=$appName, minutes=$allowedMinutes',
       );
 
-      final existing = await _db.query(
-        'app_limits',
-        columns: ['extended_minutes', 'extended_date'],
-        where: 'package_name = ?',
-        whereArgs: [packageName],
-        limit: 1,
-      );
-      final today = _todayKey();
-      final existingExtension =
-          existing.isNotEmpty && existing.first['extended_date'] == today
-          ? _asInt(existing.first['extended_minutes'])
-          : 0;
-
       batch.insert('app_limits', {
         'package_name': packageName,
         'app_name': appName,
         'allowed_minutes': allowedMinutes,
-        'extended_minutes': existingExtension,
-        'extended_date': existingExtension > 0 ? today : null,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
@@ -1214,6 +1220,29 @@ class ChildData {
   Future<void> clearAppLimits() async {
     await _db.delete('app_limits');
     print('Cleared all app limits from local DB');
+  }
+
+  Future<void> _clearExpiredAdditionalAppTime() async {
+    final today = _todayKey();
+    await _db.delete(
+      'additional_app_time',
+      where: 'added_date <> ?',
+      whereArgs: [today],
+    );
+  }
+
+  Future<Map<String, int>> _getTodayAdditionalMinutesByPackage() async {
+    final today = _todayKey();
+    final rows = await _db.query(
+      'additional_app_time',
+      columns: ['package_name', 'additional_minutes'],
+      where: 'added_date = ?',
+      whereArgs: [today],
+    );
+    return {
+      for (final row in rows)
+        row['package_name'] as String: _asInt(row['additional_minutes']),
+    };
   }
 
   Future<void> markLocalUsageSynced({required String childHash}) async {

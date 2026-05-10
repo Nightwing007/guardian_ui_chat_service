@@ -65,8 +65,6 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   Future<void> _refreshAppLimits() async {
     setState(() => _isRefreshing = true);
     try {
-      await AppDatabase().child.clearAppLimits();
-
       final session = await SessionService.getChildSession();
       final deviceToken = session['deviceToken'];
       final childHash = session['childHash'];

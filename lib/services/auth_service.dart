@@ -596,34 +596,27 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> spendChildPoints({
+  Future<Map<String, dynamic>> updateChildPoints({
     required String childHash,
     required String deviceToken,
-    required int points,
-    required String packageName,
-    required int additionalMinutes,
+    required int delta,
   }) async {
-    debugPrint('AuthService.spendChildPoints called for $childHash');
+    debugPrint('AuthService.updateChildPoints called for $childHash');
 
     try {
       final response = await http
-          .post(
-            Uri.parse('$baseUrl/api/child/$childHash/points/spend/'),
+          .patch(
+            Uri.parse('$baseUrl/api/child/$childHash/points/'),
             headers: {
               'Content-Type': 'application/json',
               'X-Device-Token': deviceToken,
             },
-            body: jsonEncode({
-              'points': points,
-              'package_name': packageName,
-              'additional_minutes': additionalMinutes,
-              'reason': 'additional_app_time',
-            }),
+            body: jsonEncode({'delta': delta}),
           )
           .timeout(const Duration(seconds: 10));
 
-      debugPrint('spendChildPoints status: ${response.statusCode}');
-      debugPrint('spendChildPoints body: ${response.body}');
+      debugPrint('updateChildPoints status: ${response.statusCode}');
+      debugPrint('updateChildPoints body: ${response.body}');
 
       final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
 
@@ -634,11 +627,11 @@ class AuthService {
       return {
         'success': false,
         'message': data is Map
-            ? data['error'] ?? data['message'] ?? 'Failed to spend points'
-            : 'Failed to spend points',
+            ? data['error'] ?? data['message'] ?? 'Failed to update points'
+            : 'Failed to update points',
       };
     } catch (e, stackTrace) {
-      debugPrint('spendChildPoints error: $e');
+      debugPrint('updateChildPoints error: $e');
       debugPrint('Stack trace: $stackTrace');
       return {'success': false, 'message': 'Network error ($e)'};
     }
