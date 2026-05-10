@@ -37,7 +37,7 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 10,
+      version: 11,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -157,6 +157,7 @@ class AppDatabase {
     await _createInstalledAppsTable(db);
     await _createLocalAppUsageTable(db);
     await _createChildProfileTable(db);
+    await _createEnforcedAppBlocksTable(db);
   }
 
   Future<void> _createTasksTable(Database db) async {
@@ -289,6 +290,9 @@ class AppDatabase {
       );
       await _addColumnIfMissing(db, 'app_limits', 'extended_date', 'TEXT');
     }
+    if (oldVersion < 11) {
+      await _createEnforcedAppBlocksTable(db);
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -330,6 +334,19 @@ class AppDatabase {
         child_hash TEXT NOT NULL,
         synced INTEGER NOT NULL DEFAULT 0,
         UNIQUE(package_name, child_hash)
+      )
+    ''');
+  }
+
+  /// Apps that currently exceed their daily limit (derived from limits + usage).
+  Future<void> _createEnforcedAppBlocksTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS enforced_app_blocks (
+        package_name TEXT PRIMARY KEY,
+        app_name TEXT NOT NULL DEFAULT '',
+        limit_minutes INTEGER NOT NULL,
+        used_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL
       )
     ''');
   }
@@ -990,6 +1007,59 @@ class ChildData {
       where: 'package_name = ?',
       whereArgs: [packageName],
     );
+  }
+
+  // ── Enforced blocks (limits vs live usage) ─────────────────────────
+
+  /// Refreshes usage, compares each [app_limits] row to [appUsageList], and
+  /// replaces [enforced_app_blocks]. Returns packages that must be blocked
+  /// on the native side.
+  Future<Set<String>> recomputeEnforcedAppBlocks() async {
+    await refreshUsageData();
+
+    final limits = await getAllAppLimits();
+    if (limits.isEmpty) {
+      await _db.delete('enforced_app_blocks');
+      return {};
+    }
+
+    final usageByPackage = {
+      for (final u in appUsageList) u.packageName: u,
+    };
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final blocked = <String, Map<String, Object?>>{};
+
+    for (final e in limits.entries) {
+      final pkg = e.key;
+      final limitMin = e.value;
+      final used = usageByPackage[pkg]?.totalTimeInForeground ?? Duration.zero;
+      final usedMs = used.inMilliseconds;
+      final limitMs = limitMin * 60 * 1000;
+      if (usedMs >= limitMs) {
+        blocked[pkg] = {
+          'package_name': pkg,
+          'app_name': usageByPackage[pkg]?.appName ?? pkg,
+          'limit_minutes': limitMin,
+          'used_ms': usedMs,
+          'updated_at_ms': now,
+        };
+      }
+    }
+
+    await _db.transaction((txn) async {
+      await txn.delete('enforced_app_blocks');
+      for (final row in blocked.values) {
+        await txn.insert('enforced_app_blocks', row);
+      }
+    });
+
+    return blocked.keys.toSet();
+  }
+
+  Future<List<String>> getEnforcedAppBlockPackages() async {
+    final rows = await _db.query('enforced_app_blocks', columns: ['package_name']);
+    return rows.map((r) => r['package_name'] as String).toList();
   }
 
   // ── Installed Apps (SQLite) ───────────────────────────────────────

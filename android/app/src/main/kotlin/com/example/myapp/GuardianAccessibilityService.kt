@@ -2,13 +2,14 @@ package com.example.myapp
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 
 /**
  * AccessibilityService that monitors foreground app changes and blocks
- * apps that have exceeded their screen time limits by forcing back to home.
+ * apps in the enforced blocklist (over daily limit) by sending HOME + BACK.
  */
 class GuardianAccessibilityService : AccessibilityService() {
 
@@ -16,6 +17,7 @@ class GuardianAccessibilityService : AccessibilityService() {
     private var lastBlockedPackage: String? = null
     private var lastBlockTime: Long = 0
     private val blockedPackages = mutableSetOf<String>()
+    private var lastForegroundPackage: String = ""
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -27,6 +29,7 @@ class GuardianAccessibilityService : AccessibilityService() {
             notificationTimeout = 100
         }
         serviceInfo = info
+        applyPendingBlockedPackages(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -34,18 +37,25 @@ class GuardianAccessibilityService : AccessibilityService() {
 
         val packageName = event.packageName?.toString() ?: return
 
-        // Skip system packages and this app
-        if (packageName.startsWith("com.android.") ||
-            packageName.startsWith("android.") ||
-            packageName.startsWith("com.google.android.") ||
-            packageName == this.packageName ||
-            packageName == "com.example.myapp") {
+        if (packageName != lastForegroundPackage && packageName != this.packageName) {
+            lastForegroundPackage = packageName
+            val intent = Intent(AppBlockerService.ACTION_APP_FOREGROUND).apply {
+                setPackage(this@GuardianAccessibilityService.packageName)
+                putExtra(AppBlockerService.EXTRA_FOREGROUND_PACKAGE, packageName)
+            }
+            sendBroadcast(intent)
+        }
+
+        // Only skip our own app and system UI — do NOT skip com.google.android.* or
+        // parents cannot block YouTube, Chrome, etc.
+        if (packageName == this.packageName ||
+            packageName == "com.example.myapp" ||
+            packageName == "com.android.systemui"
+        ) {
             return
         }
 
-        // Check if this package is blocked
         if (blockedPackages.contains(packageName)) {
-            // Prevent rapid repeated blocking (debounce 2 seconds)
             val currentTime = System.currentTimeMillis()
             if (packageName != lastBlockedPackage || (currentTime - lastBlockTime) > 2000) {
                 lastBlockedPackage = packageName
@@ -58,10 +68,7 @@ class GuardianAccessibilityService : AccessibilityService() {
     private fun blockApp() {
         handler.post {
             try {
-                // Force go to home screen - this effectively blocks the app
                 performGlobalAction(GLOBAL_ACTION_HOME)
-                
-                // Also try to go back to stop the app
                 for (i in 0..2) {
                     performGlobalAction(GLOBAL_ACTION_BACK)
                 }
@@ -72,16 +79,40 @@ class GuardianAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        // Required override
+    }
+
+    override fun onDestroy() {
+        if (instance == this) {
+            instance = null
+        }
+        super.onDestroy()
     }
 
     companion object {
         private var instance: GuardianAccessibilityService? = null
+        private val pendingBlockedPackages = mutableSetOf<String>()
 
+        /**
+         * Replaces the in-memory blocklist. If the service is not connected yet,
+         * stores a pending copy applied in [onServiceConnected].
+         */
         fun updateBlockedPackages(packages: Set<String>) {
-            instance?.let { service ->
+            synchronized(pendingBlockedPackages) {
+                pendingBlockedPackages.clear()
+                pendingBlockedPackages.addAll(packages)
+            }
+            instance?.let { svc ->
+                synchronized(svc.blockedPackages) {
+                    svc.blockedPackages.clear()
+                    svc.blockedPackages.addAll(packages)
+                }
+            }
+        }
+
+        private fun applyPendingBlockedPackages(service: GuardianAccessibilityService) {
+            synchronized(pendingBlockedPackages) {
                 service.blockedPackages.clear()
-                service.blockedPackages.addAll(packages)
+                service.blockedPackages.addAll(pendingBlockedPackages)
             }
         }
 

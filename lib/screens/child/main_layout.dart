@@ -13,8 +13,6 @@ import 'package:myapp/services/child/app_blocker_service.dart';
 import 'package:myapp/services/child/installed_apps_sync_service.dart';
 import 'package:myapp/services/session_service.dart';
 import 'package:myapp/services/child/feedback_loop_controller.dart';
-import 'package:myapp/services/child/ai_inference.dart';
-import 'package:myapp/screens/child/ai_setup_screen.dart';
 import 'package:myapp/widgets/child/sos_bottom_sheet.dart';
 import 'package:myapp/widgets/child/custom_bottom_nav_bar.dart';
 
@@ -68,14 +66,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     await _syncChildProfileFromCloud();
     _syncAppLimitsFromCloud();
 
-    final modelReady = await AiChannel.ensureModel();
-    if (!modelReady && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const AiModelSetupScreen()),
-      );
-      return;
-    }
-
+    // Testing: skip AI model setup gate; feedback loop no-ops if no model.
     _feedbackLoop.start();
     if (mounted) {
       setState(() => _dbReady = true);
@@ -135,6 +126,8 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
               .toList();
           await AppDatabase().child.saveAppLimits(limitsList);
           print('Synced ${limits.length} app limits to local DB');
+          await AppBlockerService().syncNativeLimitsFromDatabase();
+          await AppBlockerService().refreshEnforcementFromDatabase();
         }
       }
     } catch (e) {

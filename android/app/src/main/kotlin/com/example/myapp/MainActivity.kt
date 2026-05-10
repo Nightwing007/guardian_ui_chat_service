@@ -179,6 +179,70 @@ class MainActivity : FlutterActivity() {
                         GuardianAccessibilityService.updateBlockedPackages(blockedApps)
                         result.success(true)
                     }
+                    "syncEnforcedBlocklist" -> {
+                        val list = call.argument<List<Any>>("packages")
+                        if (list != null) {
+                            val pkgs = list.mapNotNull { it as? String }.toSet()
+                            blockedApps.clear()
+                            blockedApps.addAll(pkgs)
+                            GuardianAccessibilityService.updateBlockedPackages(blockedApps)
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_ARGUMENT", "packages list required", null)
+                        }
+                    }
+
+                    // ── App limits & foreground blocker (Guardian-AI-4 parity) ──
+                    "setAppLimit" -> {
+                        val pkg = call.argument<String>("packageName")
+                        val limitMs = call.argument<Number>("limitMs")?.toLong()
+                        if (pkg != null && limitMs != null) {
+                            AppBlockerService.setLimit(this, pkg, limitMs)
+                            val startIntent = Intent(this, AppBlockerService::class.java)
+                                .setAction(AppBlockerService.ACTION_START)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForegroundService(startIntent)
+                            } else {
+                                startService(startIntent)
+                            }
+                            result.success(null)
+                        } else {
+                            result.error("INVALID_ARGS", "packageName and limitMs required", null)
+                        }
+                    }
+                    "removeAppLimit" -> {
+                        val pkg = call.argument<String>("packageName")
+                        if (pkg != null) {
+                            AppBlockerService.removeLimit(this, pkg)
+                            result.success(null)
+                        } else {
+                            result.error("INVALID_ARGS", "packageName required", null)
+                        }
+                    }
+                    "getAppLimits" -> {
+                        val limits = AppBlockerService.getLimits(this)
+                        result.success(HashMap(limits))
+                    }
+                    "startBlocker" -> {
+                        val startIntent = Intent(this, AppBlockerService::class.java)
+                            .setAction(AppBlockerService.ACTION_START)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(startIntent)
+                        } else {
+                            startService(startIntent)
+                        }
+                        result.success(null)
+                    }
+                    "stopBlocker" -> {
+                        startService(
+                            Intent(this, AppBlockerService::class.java)
+                                .setAction(AppBlockerService.ACTION_STOP)
+                        )
+                        result.success(null)
+                    }
+                    "isBlockerRunning" -> {
+                        result.success(AppBlockerService.isRunning)
+                    }
 
                     // ── Parent Document Vault ─────────────────────────────
                     "renderPdfPages" -> {
