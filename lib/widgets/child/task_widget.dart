@@ -90,6 +90,35 @@ class _TaskWidgetState extends State<TaskWidget>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant TaskWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final stateChanged = widget.initialState != oldWidget.initialState;
+    final timerChanged = widget.timerTime != oldWidget.timerTime;
+    final taskChanged = widget.taskId != oldWidget.taskId;
+
+    if (!stateChanged && !timerChanged && !taskChanged) return;
+
+    _animationController.duration = TaskWidget.parseTimerTime(widget.timerTime);
+
+    if (stateChanged || taskChanged) {
+      _currentState = widget.initialState;
+    }
+
+    if (_currentState == TaskState.accepted ||
+        _currentState == TaskState.inProgress) {
+      _animationController
+        ..stop()
+        ..reset()
+        ..forward();
+    } else {
+      _animationController
+        ..stop()
+        ..reset();
+    }
+  }
+
   void _handleAccept() {
     if (_currentState == TaskState.initial) {
       setState(() {
