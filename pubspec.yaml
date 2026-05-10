@@ -46,7 +46,8 @@ dependencies:
   qr_flutter: ^4.1.0
   file_picker: ^8.0.0
   path_provider: ^2.1.2
-  flutter_gemma: ^0.14.5
+  flutter_gemma: ^0.13.0
+  flutter_dotenv: ^5.1.0
   mobile_scanner: ^6.0.2
 
 dev_dependencies:
@@ -72,6 +73,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - .env
     - assets/images/robohead.png
     - assets/images/screenusage/Default.png
     - assets/images/screenusage/medium.png
