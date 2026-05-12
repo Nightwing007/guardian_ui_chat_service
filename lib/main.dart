@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
+import 'package:myapp/screens/child/ai_setup_screen.dart';
 import 'package:myapp/screens/child/main_layout.dart';
 import 'package:myapp/screens/welcome_screen.dart';
 import 'package:myapp/screens/parent/parent_main_layout.dart';
+import 'package:myapp/services/child/ai_inference.dart';
 import 'package:myapp/services/session_service.dart';
 
 Future<void> main() async {
@@ -47,6 +49,7 @@ class _SessionWrapperState extends State<SessionWrapper> {
   bool _isLoading = true;
   Map<String, String?>? _parentSession;
   Map<String, String?>? _childSession;
+  bool _childAiReady = false;
 
   @override
   void initState() {
@@ -57,9 +60,16 @@ class _SessionWrapperState extends State<SessionWrapper> {
   Future<void> _checkSession() async {
     final parentSession = await SessionService.getParentSession();
     final childSession = await SessionService.getChildSession();
+    var childAiReady = false;
+    if (childSession?['role'] == SessionService.childRole &&
+        childSession?['isLinked'] == 'true' &&
+        childSession?['deviceToken'] != null) {
+      childAiReady = await AiChannel.ensureModel();
+    }
     setState(() {
       _parentSession = parentSession;
       _childSession = childSession;
+      _childAiReady = childAiReady;
       _isLoading = false;
     });
   }
@@ -78,6 +88,9 @@ class _SessionWrapperState extends State<SessionWrapper> {
     if (_childSession?['role'] == SessionService.childRole &&
         _childSession?['isLinked'] == 'true' &&
         _childSession?['deviceToken'] != null) {
+      if (!_childAiReady) {
+        return const AiModelSetupScreen();
+      }
       return const MainLayout();
     }
 

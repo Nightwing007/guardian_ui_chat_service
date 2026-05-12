@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:myapp/screens/child/main_layout.dart';
+import 'package:myapp/services/child/ai_inference.dart';
 
 class AiModelSetupScreen extends StatefulWidget {
   const AiModelSetupScreen({super.key});
@@ -18,6 +19,7 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
   double _progress = 0;
   String _statusMessage = '';
   late AnimationController _pulseController;
+  bool _engineReady = false;
 
   static const String _modelUrl =
       'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm';
@@ -39,6 +41,8 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
   }
 
   Future<void> _downloadModel() async {
+    final ready = await _ensureEngineReady();
+    if (!ready) return;
     setState(() {
       _mode = SetupMode.downloading;
       _progress = 0;
@@ -58,13 +62,15 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
         });
       }).install();
 
-      await _onSuccess();
+      await _finalizeActivation();
     } catch (e) {
       _onError(e.toString());
     }
   }
 
   Future<void> _importModel() async {
+    final ready = await _ensureEngineReady();
+    if (!ready) return;
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['litertlm'],
@@ -103,10 +109,38 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
         });
       }).install();
 
-      await _onSuccess();
+      await _finalizeActivation();
     } catch (e) {
       _onError(e.toString());
     }
+  }
+
+  Future<bool> _ensureEngineReady() async {
+    if (_engineReady) return true;
+    try {
+      await FlutterGemma.initialize();
+      _engineReady = true;
+      return true;
+    } catch (e) {
+      _onError('AI engine failed to initialize. Please restart the app.');
+      return false;
+    }
+  }
+
+  Future<void> _finalizeActivation() async {
+    setState(() {
+      _statusMessage = 'Activating model...';
+    });
+
+    final ready = await AiChannel.ensureModel();
+    if (!ready) {
+      _onError(
+        'Model installed but could not be activated. Please try again or restart the app.',
+      );
+      return;
+    }
+
+    await _onSuccess();
   }
 
   void _onError(String error) {

@@ -30,7 +30,7 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _dbReady = false;
-  bool _aiPrompted = false;
+  bool _aiSetupRedirected = false;
   final FeedbackLoopController _feedbackLoop = FeedbackLoopController();
 
   @override
@@ -70,51 +70,25 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     _syncAppLimitsFromCloud();
 
     final modelReady = await AiChannel.ensureModel();
-    if (modelReady) {
-      _feedbackLoop.start();
-    } else {
-      _scheduleAiSetupPrompt();
+    if (!modelReady) {
+      _redirectToAiSetup();
+      return;
     }
+
+    _feedbackLoop.start();
     if (mounted) {
       setState(() => _dbReady = true);
       widget.onReady?.call();
     }
   }
 
-  void _scheduleAiSetupPrompt() {
-    if (_aiPrompted) return;
-    _aiPrompted = true;
+  void _redirectToAiSetup() {
+    if (_aiSetupRedirected || !mounted) return;
+    _aiSetupRedirected = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (context) {
-          return AlertDialog(
-            backgroundColor: AppColors.scaffoldBackground,
-            title: const Text('AI model not ready'),
-            content: const Text(
-              'Guardian AI needs a local model to analyze screenshots. You can set it up now or continue without AI alerts.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Later'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AiModelSetupScreen(),
-                    ),
-                  );
-                },
-                child: const Text('Set up AI model'),
-              ),
-            ],
-          );
-        },
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AiModelSetupScreen()),
       );
     });
   }

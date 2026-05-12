@@ -10,17 +10,28 @@ class AiChannel {
   static Future<bool> ensureModel() async {
     if (_model != null) return true;
     try {
-      _model = await FlutterGemma.getActiveModel(
-        maxTokens: 1024,
-        preferredBackend: PreferredBackend.gpu,
-        supportImage: true,
-        maxNumImages: 1,
-      );
+      _model = await _getModel(PreferredBackend.gpu);
       return true;
     } catch (e) {
-      debugPrint('[AiChannel] No active model found: $e');
+      debugPrint('[AiChannel] GPU model load failed: $e');
+    }
+
+    try {
+      _model = await _getModel(PreferredBackend.cpu);
+      return true;
+    } catch (e) {
+      debugPrint('[AiChannel] CPU model load failed: $e');
       return false;
     }
+  }
+
+  static Future<dynamic> _getModel(PreferredBackend backend) async {
+    return FlutterGemma.getActiveModel(
+      maxTokens: 1024,
+      preferredBackend: backend,
+      supportImage: true,
+      maxNumImages: 1,
+    );
   }
 
   static Future<String> runInference(Uint8List imageBytes) async {
