@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/screens/parent/parent_chat_screen.dart';
 import 'package:myapp/screens/parent/parent_dashboard_screen.dart';
 import 'package:myapp/screens/parent/alerts_screen.dart';
 import 'package:myapp/screens/parent/command_center_screen.dart';
@@ -300,16 +301,18 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
     return null;
   }
 
-  // Placeholder screens for Parent
+  // Parent screens — indexed to match the bottom nav icons:
+  // 0: Chat (msg icon), 1: Alerts, 2: Dashboard (center), 3: Command Center, 4: Profile
   List<Widget> get _screens => [
-    ConnectScreen(
-      onBack: () {
-        setState(() {
-          _currentIndex = 2; // Return to dashboard
-        });
-      },
+    // Index 0: Chat with the currently selected child
+    ParentChatScreen(
+      key: ValueKey('parent-chat-$_selectedChildHash'),
+      childHash: _selectedChildHash,
+      childName: _selectedChildName,
     ),
+    // Index 1: Alerts
     const AlertsScreen(),
+    // Index 2: Dashboard (centre button)
     ParentDashboardScreen(
       key: ValueKey('dashboard-$_selectedChildHash-$_localCacheVersion'),
       email: widget.email,
@@ -318,6 +321,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       childName: _selectedChildName,
       localCacheVersion: _localCacheVersion,
     ),
+    // Index 3: Command Center
     CommandCenterScreen(
       key: ValueKey('command-$_selectedChildHash-$_localCacheVersion'),
       onBack: () {
@@ -329,6 +333,7 @@ class _ParentMainLayoutState extends State<ParentMainLayout> {
       password: widget.password,
       childHash: _selectedChildHash,
     ),
+    // Index 4: Profile
     ParentProfileScreen(
       email: widget.email,
       password: widget.password,

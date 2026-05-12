@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/screens/child/home_screen.dart';
+import 'package:myapp/screens/child/ai_setup_screen.dart';
 import 'package:myapp/screens/child/tasks_screen.dart';
 import 'package:myapp/screens/child/chat_screen.dart';
 import 'package:myapp/screens/child/safety_screen.dart';
 import 'package:myapp/screens/child/child_profile_screen.dart';
 import 'package:myapp/services/app_database.dart';
 import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/child/ai_inference.dart';
 import 'package:myapp/services/child/usage_submission_service.dart';
 import 'package:myapp/services/child/app_blocker_service.dart';
 import 'package:myapp/services/child/installed_apps_sync_service.dart';
@@ -28,6 +30,7 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _dbReady = false;
+  bool _aiPrompted = false;
   final FeedbackLoopController _feedbackLoop = FeedbackLoopController();
 
   @override
@@ -66,12 +69,54 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     await _syncChildProfileFromCloud();
     _syncAppLimitsFromCloud();
 
-    // Testing: skip AI model setup gate; feedback loop no-ops if no model.
-    _feedbackLoop.start();
+    final modelReady = await AiChannel.ensureModel();
+    if (modelReady) {
+      _feedbackLoop.start();
+    } else {
+      _scheduleAiSetupPrompt();
+    }
     if (mounted) {
       setState(() => _dbReady = true);
       widget.onReady?.call();
     }
+  }
+
+  void _scheduleAiSetupPrompt() {
+    if (_aiPrompted) return;
+    _aiPrompted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) {
+          return AlertDialog(
+            backgroundColor: AppColors.scaffoldBackground,
+            title: const Text('AI model not ready'),
+            content: const Text(
+              'Guardian AI needs a local model to analyze screenshots. You can set it up now or continue without AI alerts.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Later'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AiModelSetupScreen(),
+                    ),
+                  );
+                },
+                child: const Text('Set up AI model'),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   Future<void> _syncChildProfileFromCloud() async {

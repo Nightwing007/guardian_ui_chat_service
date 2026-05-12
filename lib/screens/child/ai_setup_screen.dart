@@ -66,14 +66,23 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
 
   Future<void> _importModel() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-      dialogTitle: 'Select Gemma 4 model (.task file)',
+      type: FileType.custom,
+      allowedExtensions: const ['litertlm'],
+      dialogTitle: 'Select Gemma 4 model (.litertlm file)',
     );
 
     if (result == null || result.files.isEmpty) return;
 
     final path = result.files.single.path;
-    if (path == null) return;
+    if (path == null || path.isEmpty) {
+      _onError('Selected file has no path. Please choose a local .litertlm file.');
+      return;
+    }
+
+    if (!path.toLowerCase().endsWith('.litertlm')) {
+      _onError('Invalid file type. Please select a .litertlm model file.');
+      return;
+    }
 
     setState(() {
       _mode = SetupMode.importing;
@@ -175,7 +184,7 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
                 _buildOptionCard(
                   icon: Icons.folder_open_rounded,
                   title: 'Import from Device',
-                  subtitle: 'Select an existing .task file\nalready on your device',
+                  subtitle: 'Select an existing .litertlm file\nalready on your device',
                   color: const Color(0xFF03DAC6),
                   onTap: _importModel,
                 ),

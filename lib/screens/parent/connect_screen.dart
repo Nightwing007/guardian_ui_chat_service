@@ -1,14 +1,21 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/parent/parent_chat_message_widget.dart';
+import 'package:myapp/models/chat/chat_message.dart';
+import 'package:myapp/services/chat/chat_service.dart';
 
 class ConnectScreen extends StatefulWidget {
   final VoidCallback? onBack;
+  final String childHash;
+  final String? childName;
 
-  const ConnectScreen({super.key, this.onBack});
+  const ConnectScreen({
+    super.key,
+    this.onBack,
+    required this.childHash,
+    this.childName,
+  });
 
   @override
   State<ConnectScreen> createState() => _ConnectScreenState();
@@ -17,7 +24,8 @@ class ConnectScreen extends StatefulWidget {
 class _ConnectScreenState extends State<ConnectScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  List<dynamic> _messages = [];
+  final _chatService = ChatService();
+  List<ChatMessageItem> _messages = [];
   bool _isLoading = true;
   String? _error;
 
@@ -29,9 +37,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   Future<void> _loadMessages() async {
     try {
-      final jsonString = await rootBundle.loadString('assets/data/chat_messages.json');
       setState(() {
-        _messages = json.decode(jsonString);
+        _isLoading = true;
+        _error = null;
+      });
+      final messages = await _chatService.fetchGuardianConversation(
+        childHash: widget.childHash,
+        markRead: true,
+      );
+      setState(() {
+        _messages = messages;
         _isLoading = false;
       });
       _scrollToBottom();
@@ -41,6 +56,14 @@ class _ConnectScreenState extends State<ConnectScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  String _formatTime(DateTime time) {
+    final hour = time.hour;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    return '$displayHour:$minute $period';
   }
 
   void _scrollToBottom() {
@@ -57,17 +80,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   void _sendMessage() {
     if (_controller.text.trim().isEmpty) return;
-
-    setState(() {
-      _messages.add({
-        "text": _controller.text.trim(),
-        "time": TimeOfDay.now().format(context),
-        "isme": true,
-        "isseen": false, // Assume unread initially
-      });
-    });
+    final text = _controller.text.trim();
     _controller.clear();
-    _scrollToBottom();
+    _chatService
+        .sendGuardianMessage(childHash: widget.childHash, text: text)
+        .then((_) => _loadMessages())
+        .catchError((e) {
+          setState(() {
+            _error = e.toString();
+          });
+        });
   }
 
   @override
@@ -124,7 +146,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     ),
                     const SizedBox(width: 16),
                     Text(
-                      'Arav',
+                      widget.childName?.trim().isNotEmpty == true
+                          ? widget.childName!.trim()
+                          : 'Child',
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -150,10 +174,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
                         itemBuilder: (context, index) {
                           final msg = _messages[index];
                           return ParentChatMessageWidget(
-                            text: msg['text'],
-                            time: msg['time'],
-                            isMe: msg['isme'],
-                            isSeen: msg['isseen'] ?? false,
+                            text: msg.text,
+                            time: _formatTime(msg.createdAt),
+                            isMe: msg.isMe,
+                            isSeen: msg.isSeen,
                           );
                         },
                       ),

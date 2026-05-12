@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:myapp/models/child/task_model.dart';
-import 'package:myapp/models/child/chat_message.dart';
+import 'package:myapp/models/chat/chat_message.dart';
 import 'package:myapp/services/child/app_usage_service.dart';
 
 /// Central SQLite-backed database for the Guardian AI app.
@@ -37,12 +37,13 @@ class AppDatabase {
     final dbPath = p.join(await getDatabasesPath(), 'guardian_ai.db');
     _db = await openDatabase(
       dbPath,
-      version: 12,
+      version: 13,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
 
-    child._db = _db!;
+    child._attachDb(_db!);
+    parent._attachDb(_db!);
 
     // Hydrate live usage data from native (not stored in SQLite).
     await child.refreshUsageData();
@@ -101,57 +102,7 @@ class AppDatabase {
     await _createAdditionalAppTimeTable(db);
 
     // ── chat_messages ──
-    await db.execute('''
-      CREATE TABLE chat_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        text TEXT NOT NULL,
-        time TEXT NOT NULL,
-        is_me INTEGER NOT NULL,
-        is_seen INTEGER NOT NULL DEFAULT 0
-      )
-    ''');
-
-    // Seed some sample chat messages
-    final now = DateTime.now();
-    final sampleMessages = [
-      {
-        'text': 'Hey Alex! How was thr your day?',
-        'time': now.subtract(const Duration(hours: 2)).toIso8601String(),
-        'is_me': 0,
-        'is_seen': 1,
-      },
-      {
-        'text': 'It was good! I finished my homework.',
-        'time': now
-            .subtract(const Duration(hours: 1, minutes: 45))
-            .toIso8601String(),
-        'is_me': 1,
-        'is_seen': 1,
-      },
-      {
-        'text': 'That\'s great! Keep it up!',
-        'time': now
-            .subtract(const Duration(hours: 1, minutes: 30))
-            .toIso8601String(),
-        'is_me': 0,
-        'is_seen': 1,
-      },
-      {
-        'text': 'Thanks Mom! Can I have more screen time?',
-        'time': now.subtract(const Duration(hours: 1)).toIso8601String(),
-        'is_me': 1,
-        'is_seen': 1,
-      },
-      {
-        'text': 'Complete your tasks first!',
-        'time': now.subtract(const Duration(minutes: 30)).toIso8601String(),
-        'is_me': 0,
-        'is_seen': 0,
-      },
-    ];
-    for (final msg in sampleMessages) {
-      await db.insert('chat_messages', msg);
-    }
+    await _createChatMessagesTable(db);
 
     await _createInstalledAppsTable(db);
     await _createLocalAppUsageTable(db);
@@ -177,6 +128,29 @@ class AppDatabase {
         UNIQUE(remote_id)
       )
     ''');
+  }
+
+  Future<void> _createChatMessagesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_role TEXT NOT NULL,
+        child_hash TEXT NOT NULL,
+        guardian_id INTEGER NOT NULL,
+        remote_id INTEGER,
+        sender_type TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        is_me INTEGER NOT NULL,
+        UNIQUE(owner_role, child_hash, guardian_id, remote_id)
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS chat_messages_conversation_idx '
+      'ON chat_messages(owner_role, child_hash, guardian_id, created)',
+    );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -295,6 +269,10 @@ class AppDatabase {
     if (oldVersion < 12) {
       await _createAdditionalAppTimeTable(db);
     }
+    if (oldVersion < 13) {
+      await db.execute('DROP TABLE IF EXISTS chat_messages');
+      await _createChatMessagesTable(db);
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -396,6 +374,12 @@ class ChildData {
 
   /// Set by [AppDatabase.initialize] after the DB is opened.
   late Database _db;
+  late _ChatStore _chatStore;
+
+  void _attachDb(Database db) {
+    _db = db;
+    _chatStore = _ChatStore(db, ownerRole: 'child');
+  }
 
   // ── Live usage cache (not persisted in SQLite) ────────────────────
 
@@ -1256,34 +1240,157 @@ class ChildData {
 
   // ── Chat Messages (SQLite) ───────────────────────────────────────────
 
-  Future<List<ChatMessage>> getChatMessages() async {
-    final rows = await _db.query('chat_messages', orderBy: 'time ASC');
-    return rows.map((row) => ChatMessage.fromMap(row)).toList();
+  Future<List<ChatMessageItem>> getChatMessages({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    return _chatStore.getMessages(
+      childHash: childHash,
+      guardianId: guardianId,
+    );
   }
 
-  Future<void> sendChatMessage(String text) async {
-    await _db.insert('chat_messages', {
-      'text': text,
-      'time': DateTime.now().toIso8601String(),
-      'is_me': 1,
-      'is_seen': 1,
-    });
+  Future<void> upsertChatMessage({
+    required String childHash,
+    required int guardianId,
+    required int? remoteId,
+    required String senderType,
+    required String text,
+    required DateTime createdAt,
+    required bool isRead,
+    required bool isMe,
+  }) async {
+    await _chatStore.upsertMessage(
+      childHash: childHash,
+      guardianId: guardianId,
+      remoteId: remoteId,
+      senderType: senderType,
+      text: text,
+      createdAt: createdAt,
+      isRead: isRead,
+      isMe: isMe,
+    );
   }
 
-  Future<void> markMessagesAsSeen() async {
+  Future<void> updateChatMessageReadStatus({
+    required String childHash,
+    required int guardianId,
+    required int remoteId,
+    required bool isRead,
+  }) async {
+    await _chatStore.updateReadStatus(
+      childHash: childHash,
+      guardianId: guardianId,
+      remoteId: remoteId,
+      isRead: isRead,
+    );
+  }
+
+  Future<void> markConversationRead({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    await _chatStore.markInboundRead(
+      childHash: childHash,
+      guardianId: guardianId,
+    );
+  }
+
+  Future<int> getUnreadCount({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    return _chatStore.getUnreadCount(
+      childHash: childHash,
+      guardianId: guardianId,
+    );
+  }
+}
+
+class _ChatStore {
+  final Database _db;
+  final String ownerRole;
+
+  _ChatStore(this._db, {required this.ownerRole});
+
+  Future<List<ChatMessageItem>> getMessages({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    final rows = await _db.query(
+      'chat_messages',
+      where: 'owner_role = ? AND child_hash = ? AND guardian_id = ?',
+      whereArgs: [ownerRole, childHash, guardianId],
+      orderBy: 'created ASC',
+    );
+    return rows.map(ChatMessageItem.fromDb).toList();
+  }
+
+  Future<void> upsertMessage({
+    required String childHash,
+    required int guardianId,
+    required int? remoteId,
+    required String senderType,
+    required String text,
+    required DateTime createdAt,
+    required bool isRead,
+    required bool isMe,
+  }) async {
+    await _db.insert(
+      'chat_messages',
+      {
+        'owner_role': ownerRole,
+        'child_hash': childHash,
+        'guardian_id': guardianId,
+        'remote_id': remoteId,
+        'sender_type': senderType,
+        'text': text,
+        'created': createdAt.toIso8601String(),
+        'is_read': isRead ? 1 : 0,
+        'is_me': isMe ? 1 : 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> updateReadStatus({
+    required String childHash,
+    required int guardianId,
+    required int remoteId,
+    required bool isRead,
+  }) async {
     await _db.update(
       'chat_messages',
-      {'is_seen': 1},
-      where: 'is_me = ? AND is_seen = ?',
-      whereArgs: [0, 0],
+      {'is_read': isRead ? 1 : 0},
+      where:
+          'owner_role = ? AND child_hash = ? AND guardian_id = ? AND remote_id = ?',
+      whereArgs: [ownerRole, childHash, guardianId, remoteId],
     );
   }
 
-  Future<int> getUnreadCount() async {
-    final rows = await _db.rawQuery(
-      'SELECT COUNT(*) as count FROM chat_messages WHERE is_me = 0 AND is_seen = 0',
+  Future<void> markInboundRead({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    await _db.update(
+      'chat_messages',
+      {'is_read': 1},
+      where:
+          'owner_role = ? AND child_hash = ? AND guardian_id = ? AND is_me = 0 AND is_read = 0',
+      whereArgs: [ownerRole, childHash, guardianId],
     );
-    return rows.first['count'] as int;
+  }
+
+  Future<int> getUnreadCount({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    final rows = await _db.rawQuery(
+      'SELECT COUNT(*) as count FROM chat_messages '
+      'WHERE owner_role = ? AND child_hash = ? AND guardian_id = ? AND is_me = 0 AND is_read = 0',
+      [ownerRole, childHash, guardianId],
+    );
+    return (rows.first['count'] as int?) ?? 0;
   }
 }
 
@@ -1328,5 +1435,77 @@ class _AdditionalTimePurchaseException implements Exception {
 
 /// Placeholder partition for parent-side data (profiles, rules, etc.).
 class ParentData {
-  // Will be populated as parent features are built out.
+  late Database _db;
+  late _ChatStore _chatStore;
+
+  void _attachDb(Database db) {
+    _db = db;
+    _chatStore = _ChatStore(db, ownerRole: 'parent');
+  }
+
+  Future<List<ChatMessageItem>> getChatMessages({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    return _chatStore.getMessages(
+      childHash: childHash,
+      guardianId: guardianId,
+    );
+  }
+
+  Future<void> upsertChatMessage({
+    required String childHash,
+    required int guardianId,
+    required int? remoteId,
+    required String senderType,
+    required String text,
+    required DateTime createdAt,
+    required bool isRead,
+    required bool isMe,
+  }) async {
+    await _chatStore.upsertMessage(
+      childHash: childHash,
+      guardianId: guardianId,
+      remoteId: remoteId,
+      senderType: senderType,
+      text: text,
+      createdAt: createdAt,
+      isRead: isRead,
+      isMe: isMe,
+    );
+  }
+
+  Future<void> updateChatMessageReadStatus({
+    required String childHash,
+    required int guardianId,
+    required int remoteId,
+    required bool isRead,
+  }) async {
+    await _chatStore.updateReadStatus(
+      childHash: childHash,
+      guardianId: guardianId,
+      remoteId: remoteId,
+      isRead: isRead,
+    );
+  }
+
+  Future<void> markConversationRead({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    await _chatStore.markInboundRead(
+      childHash: childHash,
+      guardianId: guardianId,
+    );
+  }
+
+  Future<int> getUnreadCount({
+    required String childHash,
+    required int guardianId,
+  }) async {
+    return _chatStore.getUnreadCount(
+      childHash: childHash,
+      guardianId: guardianId,
+    );
+  }
 }

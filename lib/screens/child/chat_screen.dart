@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/theme/app_colors.dart';
 import 'package:myapp/widgets/child/chat_message_widget.dart';
-import 'package:myapp/services/app_database.dart';
-import 'package:myapp/models/child/chat_message.dart';
+import 'package:myapp/models/chat/chat_message.dart';
+import 'package:myapp/services/chat/chat_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -13,11 +13,13 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final _db = AppDatabase();
+  final _chatService = ChatService();
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  List<ChatMessage> _messages = [];
+  List<ChatMessageItem> _messages = [];
   bool _isLoading = true;
+  bool _isSending = false;
+  String? _error;
 
   @override
   void initState() {
@@ -33,25 +35,79 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadMessages() async {
-    final messages = await _db.child.getChatMessages();
-    await _db.child.markMessagesAsSeen();
-    if (mounted) {
-      setState(() {
-        _messages = messages;
-        _isLoading = false;
-      });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final messages =
+          await _chatService.fetchChildConversation(markRead: true);
+      if (mounted) {
+        setState(() {
+          _messages = messages;
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-    
+    if (text.isEmpty || _isSending) return;
+
     _messageController.clear();
-    await _db.child.sendChatMessage(text);
-    await _loadMessages();
-    
-    // Scroll to bottom
+
+    // Optimistic UI: add message immediately so it feels instant
+    final optimistic = ChatMessageItem(
+      text: text,
+      createdAt: DateTime.now(),
+      isMe: true,
+      isSeen: false,
+      senderType: 'child',
+    );
+    setState(() {
+      _messages = [..._messages, optimistic];
+      _isSending = true;
+      _error = null;
+    });
+    _scrollToBottom();
+
+    try {
+      await _chatService.sendChildMessage(text);
+      // Refresh to get server-assigned remote ID and proper timestamp
+      final messages =
+          await _chatService.fetchChildConversation(markRead: false);
+      if (mounted) {
+        setState(() {
+          _messages = messages;
+          _isSending = false;
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        // Remove optimistic message on failure and show error
+        setState(() {
+          _messages = _messages.where((m) => m != optimistic).toList();
+          _isSending = false;
+          _error = e.toString();
+        });
+        // Restore the text so the user doesn't lose their message
+        _messageController.text = text;
+      }
+    }
+  }
+
+  void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -93,9 +149,12 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         children: [
           _buildHeader(),
+          if (_error != null) _buildErrorBanner(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                ? const Center(
+                    child:
+                        CircularProgressIndicator(color: Colors.white))
                 : _buildMessageList(),
           ),
           _buildInputArea(),
@@ -137,7 +196,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF4ADE80),
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFF2A2A35), width: 2),
+                    border:
+                        Border.all(color: const Color(0xFF2A2A35), width: 2),
                   ),
                 ),
               ),
@@ -157,7 +217,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 Text(
-                  'ONLINE',
+                  'SECURE CHAT',
                   style: GoogleFonts.poppins(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
@@ -167,9 +227,44 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
+          // Refresh button
           IconButton(
-            icon: const Icon(Icons.phone_outlined, color: Colors.white),
-            onPressed: () {},
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh messages',
+            onPressed: _isLoading ? null : _loadMessages,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.red.shade700.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _error!,
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 12,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => setState(() => _error = null),
+            child: const Icon(Icons.close, color: Colors.white, size: 18),
           ),
         ],
       ),
@@ -179,9 +274,31 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildMessageList() {
     if (_messages.isEmpty) {
       return Center(
-        child: Text(
-          'No messages yet',
-          style: GoogleFonts.poppins(color: AppColors.textGrey),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline,
+              color: Colors.white.withValues(alpha: 0.4),
+              size: 48,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No messages yet',
+              style: GoogleFonts.poppins(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Send a message to your parent',
+              style: GoogleFonts.poppins(
+                color: Colors.white.withValues(alpha: 0.4),
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -194,7 +311,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final msg = _messages[index];
         return ChatMessageWidget(
           text: msg.text,
-          time: _formatTime(msg.time),
+          time: _formatTime(msg.createdAt),
           isMe: msg.isMe,
         );
       },
@@ -211,45 +328,54 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.attach_file, color: Color(0xFF465A7E)),
-            onPressed: () {},
-          ),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _messageController,
               style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
               decoration: InputDecoration(
                 hintText: 'Type a message...',
-                hintStyle: GoogleFonts.poppins(fontSize: 14, color: Colors.black38),
+                hintStyle:
+                    GoogleFonts.poppins(fontSize: 14, color: Colors.black38),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.all(0),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
               ),
+              textInputAction: TextInputAction.send,
               onSubmitted: (_) => _sendMessage(),
+              enabled: !_isSending,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.mic_none_outlined, color: Color(0xFF465A7E)),
-            onPressed: () {},
-          ),
+          const SizedBox(width: 4),
           GestureDetector(
-            onTap: _sendMessage,
+            onTap: _isSending ? null : _sendMessage,
             child: Container(
               width: 44,
               height: 44,
-              decoration: const BoxDecoration(
-                color: Color(0xFF263238),
+              decoration: BoxDecoration(
+                color: _isSending
+                    ? const Color(0xFF263238).withValues(alpha: 0.5)
+                    : const Color(0xFF263238),
                 shape: BoxShape.circle,
               ),
-              child: const Center(
-                child: Padding(
-                  padding: EdgeInsets.only(left: 4.0),
-                  child: Icon(Icons.send, color: Colors.white, size: 20),
-                ),
+              child: Center(
+                child: _isSending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.only(left: 4.0),
+                        child: Icon(Icons.send, color: Colors.white, size: 20),
+                      ),
               ),
             ),
           ),
+          const SizedBox(width: 4),
         ],
       ),
     );

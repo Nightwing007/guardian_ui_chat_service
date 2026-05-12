@@ -1,0 +1,5 @@
+-keep class com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.proto.CalculatorProfileProto$CalculatorProfile
+-dontwarn com.google.mediapipe.proto.GraphTemplateProto$CalculatorGraphTemplate
+-keep class com.google.protobuf.** { *; }
+-dontwarn com.google.protobuf.**

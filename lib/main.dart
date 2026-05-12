@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +10,11 @@ import 'package:myapp/services/session_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FlutterGemma.initialize();
+  try {
+    await FlutterGemma.initialize();
+  } catch (e) {
+    debugPrint('[Main] FlutterGemma init failed: $e');
+  }
   runApp(const GuardianApp());
 }
 
