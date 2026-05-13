@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'ai_inference.dart';
 import 'risk_level.dart';
@@ -30,6 +31,12 @@ class FeedbackLoopController extends ChangeNotifier {
   CaptureFrequencyClass _appClass = CaptureFrequencyClass.normal;
   Duration _nextDelay = const Duration(milliseconds: 900);
   Duration _lastLoggedDelay = Duration.zero;
+
+  /// Subscribes to foreground-app events from native so [setActiveApp] is
+  /// called automatically whenever the user switches apps.
+  StreamSubscription<dynamic>? _foregroundAppSub;
+  static const EventChannel _foregroundAppChannel =
+      EventChannel('guardian/foreground_app');
 
   bool get isRunning => _running;
   String get lastFeedback => _lastFeedback;
@@ -95,12 +102,22 @@ class FeedbackLoopController extends ChangeNotifier {
     _refreshAdaptiveDelay(forceLog: true);
     _appendLog('status', 'Feedback loop started');
     notifyListeners();
+
+    // Subscribe to native foreground-app events for adaptive delay tuning.
+    _foregroundAppSub ??= _foregroundAppChannel
+        .receiveBroadcastStream()
+        .listen((dynamic pkg) {
+      if (pkg is String) setActiveApp(pkg);
+    }, onError: (dynamic _) {});
+
     await _runLoop();
   }
 
   void stop() {
     if (!_running) return;
     _running = false;
+    _foregroundAppSub?.cancel();
+    _foregroundAppSub = null;
     _appendLog('status', 'Feedback loop stopped');
     notifyListeners();
   }
@@ -274,6 +291,8 @@ class FeedbackLoopController extends ChangeNotifier {
   @override
   void dispose() {
     _running = false;
+    _foregroundAppSub?.cancel();
+    _foregroundAppSub = null;
     super.dispose();
   }
 }

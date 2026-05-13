@@ -283,6 +283,7 @@ class MainActivity : FlutterActivity() {
     // ── Helpers ────────────────────────────────────────────────────────
 
     override fun onDestroy() {
+        aiLoopMethodHandler.destroy()
         stopInstalledAppsWatcher()
         super.onDestroy()
     }

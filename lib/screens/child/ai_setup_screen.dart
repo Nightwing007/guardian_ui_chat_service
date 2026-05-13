@@ -52,13 +52,13 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
     try {
       await FlutterGemma.installModel(
         modelType: ModelType.gemmaIt,
-        fileType: ModelFileType.litertlm,
       )
           .fromNetwork(_modelUrl, token: _hfToken)
           .withProgress((progress) {
         setState(() {
+          // progress is int 0-100 in flutter_gemma v0.13.0
           _progress = progress / 100.0;
-          _statusMessage = 'Downloading... ${progress.toStringAsFixed(1)}%';
+          _statusMessage = 'Downloading... ${progress.toStringAsFixed(0)}%';
         });
       }).install();
 
@@ -99,11 +99,11 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
     try {
       await FlutterGemma.installModel(
         modelType: ModelType.gemmaIt,
-        fileType: ModelFileType.litertlm,
       )
           .fromFile(path)
           .withProgress((progress) {
         setState(() {
+          // progress is int 0-100 in flutter_gemma v0.13.0
           _progress = progress / 100.0;
           _statusMessage = 'Installing... $progress%';
         });
@@ -118,7 +118,9 @@ class _AiModelSetupScreenState extends State<AiModelSetupScreen>
   Future<bool> _ensureEngineReady() async {
     if (_engineReady) return true;
     try {
-      await FlutterGemma.initialize();
+      // FlutterGemma.initialize() is synchronous in v0.13.0
+      // and was already called in main(). This is a no-op guard.
+      FlutterGemma.initialize();
       _engineReady = true;
       return true;
     } catch (e) {

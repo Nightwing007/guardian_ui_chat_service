@@ -29,8 +29,6 @@ class AiChannel {
     return FlutterGemma.getActiveModel(
       maxTokens: 1024,
       preferredBackend: backend,
-      supportImage: true,
-      maxNumImages: 1,
     );
   }
 

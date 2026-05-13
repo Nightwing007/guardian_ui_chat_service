@@ -388,12 +388,31 @@ class ChatService {
     String password,
   ) async {
     var keys = await _keyStore.loadGuardianKeys(email);
+    if (keys != null && !_crypto.isValidKeyPair(keys)) {
+      developer.log(
+        'Stored guardian keys are invalid - regenerating',
+        name: 'ChatService',
+        level: 900,
+      );
+      keys = null;
+    }
     if (keys == null) {
       developer.log(
         'Guardian keys not found locally — generating new RSA key pair',
         name: 'ChatService',
       );
-      keys = _crypto.generateKeyPair();
+      try {
+        keys = _crypto.generateKeyPair();
+      } catch (e) {
+        developer.log(
+          'Failed to generate guardian keys: $e',
+          name: 'ChatService',
+          level: 1000,
+        );
+        throw ChatServiceException(
+          'Unable to generate encryption keys. Please try again.',
+        );
+      }
       await _keyStore.saveGuardianKeys(email, keys);
       // Upload public key to server so child can encrypt messages for us
       await _api.setGuardianPublicKey(
@@ -412,12 +431,31 @@ class ChatService {
   /// Loads existing child keys or generates + uploads new ones.
   Future<ChatKeyPair> _ensureChildKeys(String childHash) async {
     var keys = await _keyStore.loadChildKeys(childHash);
+    if (keys != null && !_crypto.isValidKeyPair(keys)) {
+      developer.log(
+        'Stored child keys are invalid - regenerating',
+        name: 'ChatService',
+        level: 900,
+      );
+      keys = null;
+    }
     if (keys == null) {
       developer.log(
         'Child keys not found locally — generating new RSA key pair',
         name: 'ChatService',
       );
-      keys = _crypto.generateKeyPair();
+      try {
+        keys = _crypto.generateKeyPair();
+      } catch (e) {
+        developer.log(
+          'Failed to generate child keys: $e',
+          name: 'ChatService',
+          level: 1000,
+        );
+        throw ChatServiceException(
+          'Unable to generate encryption keys. Please try again.',
+        );
+      }
       await _keyStore.saveChildKeys(childHash, keys);
     }
 

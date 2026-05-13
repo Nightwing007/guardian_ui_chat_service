@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,11 +11,9 @@ import 'package:myapp/services/session_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await FlutterGemma.initialize();
-  } catch (e) {
-    debugPrint('[Main] FlutterGemma init failed: $e');
-  }
+  // FlutterGemma.initialize() is synchronous in v0.13.0 — configures global
+  // settings (token, retries, etc.) but does NOT load a model.
+  FlutterGemma.initialize();
   runApp(const GuardianApp());
 }
 

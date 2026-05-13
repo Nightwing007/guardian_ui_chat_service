@@ -90,26 +90,34 @@ class ChatCrypto {
     try {
       final bytes = _decodePem(pem);
       final parser = ASN1Parser(bytes);
-      final sequence = parser.nextObject() as ASN1Sequence;
-      final elements = sequence.elements;
-      if (elements.length < 2) {
-        throw ChatCryptoException('Invalid public key ASN1 structure: expected at least 2 elements');
+      final topLevel = parser.nextObject();
+      if (topLevel is! ASN1Sequence) {
+        throw ChatCryptoException('Invalid public key ASN1 structure: expected a sequence');
+      }
+
+      // Try PKCS1 first (RSA PUBLIC KEY)
+      final pkcs1Key = _tryParsePkcs1PublicKey(topLevel);
+      if (pkcs1Key != null) return pkcs1Key;
+
+      // Try SubjectPublicKeyInfo (PUBLIC KEY)
+      final elements = topLevel.elements;
+      if (elements.length < 2 || elements[1] is! ASN1BitString) {
+        throw ChatCryptoException('Invalid public key ASN1 structure: expected a bit string');
       }
 
       final publicKeyBitString = elements[1] as ASN1BitString;
       final contentBytes = publicKeyBitString.contentBytes();
 
       final publicKeyParser = ASN1Parser(contentBytes);
-      final publicKeySeq = publicKeyParser.nextObject() as ASN1Sequence;
-      final pkElements = publicKeySeq.elements;
-      if (pkElements.length < 2) {
-        throw ChatCryptoException('Invalid public key inner ASN1 structure: expected at least 2 elements');
+      final publicKeySeq = publicKeyParser.nextObject();
+      if (publicKeySeq is! ASN1Sequence) {
+        throw ChatCryptoException('Invalid public key inner ASN1 structure: expected a sequence');
       }
 
-      final modulus = (pkElements[0] as ASN1Integer).valueAsBigInteger;
-      final exponent = (pkElements[1] as ASN1Integer).valueAsBigInteger;
+      final innerPkcs1Key = _tryParsePkcs1PublicKey(publicKeySeq);
+      if (innerPkcs1Key != null) return innerPkcs1Key;
 
-      return RSAPublicKey(modulus, exponent);
+      throw ChatCryptoException('Invalid public key ASN1 structure: unsupported format');
     } on ChatCryptoException {
       rethrow;
     } catch (e) {
@@ -121,33 +129,82 @@ class ChatCrypto {
     try {
       final bytes = _decodePem(pem);
       final parser = ASN1Parser(bytes);
-      final sequence = parser.nextObject() as ASN1Sequence;
-      final topElements = sequence.elements;
-      if (topElements.length < 3) {
-        throw ChatCryptoException('Invalid private key ASN1 structure: expected at least 3 elements');
+      final topLevel = parser.nextObject();
+      if (topLevel is! ASN1Sequence) {
+        throw ChatCryptoException('Invalid private key ASN1 structure: expected a sequence');
+      }
+
+      // Try PKCS1 first (RSA PRIVATE KEY)
+      final pkcs1Key = _tryParsePkcs1PrivateKey(topLevel);
+      if (pkcs1Key != null) return pkcs1Key;
+
+      // Try PKCS8 (PRIVATE KEY)
+      final topElements = topLevel.elements;
+      if (topElements.length < 3 || topElements[2] is! ASN1OctetString) {
+        throw ChatCryptoException('Invalid private key ASN1 structure: expected an octet string');
       }
 
       final privateKeyOctet = topElements[2] as ASN1OctetString;
       final octets = privateKeyOctet.octets;
 
       final privateKeyParser = ASN1Parser(octets);
-      final privateKeySeq = privateKeyParser.nextObject() as ASN1Sequence;
-      final pkElements = privateKeySeq.elements;
-      if (pkElements.length < 6) {
-        throw ChatCryptoException('Invalid private key inner ASN1 structure: expected at least 6 elements');
+      final privateKeySeq = privateKeyParser.nextObject();
+      if (privateKeySeq is! ASN1Sequence) {
+        throw ChatCryptoException('Invalid private key inner ASN1 structure: expected a sequence');
       }
 
-      final modulus = (pkElements[1] as ASN1Integer).valueAsBigInteger;
-      final privateExponent = (pkElements[3] as ASN1Integer).valueAsBigInteger;
-      final p = (pkElements[4] as ASN1Integer).valueAsBigInteger;
-      final q = (pkElements[5] as ASN1Integer).valueAsBigInteger;
+      final innerPkcs1Key = _tryParsePkcs1PrivateKey(privateKeySeq);
+      if (innerPkcs1Key != null) return innerPkcs1Key;
 
-      return RSAPrivateKey(modulus, privateExponent, p, q);
+      throw ChatCryptoException('Invalid private key ASN1 structure: unsupported format');
     } on ChatCryptoException {
       rethrow;
     } catch (e) {
       throw ChatCryptoException('Failed to parse private key: $e');
     }
+  }
+
+  bool isValidKeyPair(ChatKeyPair pair) {
+    try {
+      _parsePublicKey(pair.publicKeyPem);
+      _parsePrivateKey(pair.privateKeyPem);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  RSAPublicKey? _tryParsePkcs1PublicKey(ASN1Sequence sequence) {
+    final elements = sequence.elements;
+    if (elements.length < 2) return null;
+    if (elements[0] is! ASN1Integer || elements[1] is! ASN1Integer) return null;
+
+    final modulus = (elements[0] as ASN1Integer).valueAsBigInteger;
+    final exponent = (elements[1] as ASN1Integer).valueAsBigInteger;
+    if (modulus == null || exponent == null) return null;
+
+    return RSAPublicKey(modulus, exponent);
+  }
+
+  RSAPrivateKey? _tryParsePkcs1PrivateKey(ASN1Sequence sequence) {
+    final elements = sequence.elements;
+    if (elements.length < 6) return null;
+    if (elements[1] is! ASN1Integer ||
+        elements[3] is! ASN1Integer ||
+        elements[4] is! ASN1Integer ||
+        elements[5] is! ASN1Integer) {
+      return null;
+    }
+
+    final modulus = (elements[1] as ASN1Integer).valueAsBigInteger;
+    final privateExponent = (elements[3] as ASN1Integer).valueAsBigInteger;
+    final p = (elements[4] as ASN1Integer).valueAsBigInteger;
+    final q = (elements[5] as ASN1Integer).valueAsBigInteger;
+    if (modulus == null || privateExponent == null || p == null || q == null) {
+      return null;
+    }
+
+    return RSAPrivateKey(modulus, privateExponent, p, q);
   }
 
   String _encodePublicKeyToPem(RSAPublicKey publicKey) {
