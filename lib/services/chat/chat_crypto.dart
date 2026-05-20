@@ -269,15 +269,29 @@ class ChatCrypto {
   }
 
   Uint8List _decodePem(String pem) {
-    final lines = pem
-        .replaceAll('\r', '')
-        .split('\n')
-        .where((line) =>
-            line.isNotEmpty &&
-            !line.startsWith('-----BEGIN') &&
-            !line.startsWith('-----END'))
-        .toList();
-    return base64Decode(lines.join(''));
+    final normalized = _normalizePem(pem);
+    final withoutHeader = normalized
+        .replaceAll(RegExp('-----BEGIN [^-]+-----'), '')
+        .replaceAll(RegExp('-----END [^-]+-----'), '');
+    final b64 = withoutHeader.replaceAll(RegExp(r'\s+'), '');
+    if (b64.isEmpty) {
+      throw ChatCryptoException('PEM payload is empty or invalid');
+    }
+    return base64Decode(b64);
+  }
+
+  String _normalizePem(String pem) {
+    var normalized = pem.trim();
+    if ((normalized.startsWith("b'") && normalized.endsWith("'")) ||
+        (normalized.startsWith('b"') && normalized.endsWith('"'))) {
+      normalized = normalized.substring(2, normalized.length - 1);
+    }
+    // Handle escaped newline sequences from storage or JSON double-encoding.
+    normalized = normalized.replaceAll(r'\\r', '\r');
+    normalized = normalized.replaceAll(r'\\n', '\n');
+    normalized = normalized.replaceAll(r'\r', '\r');
+    normalized = normalized.replaceAll(r'\n', '\n');
+    return normalized.replaceAll('\r', '');
   }
 
   String _encodePem(String label, Uint8List bytes) {

@@ -19,7 +19,6 @@ class _ChatScreenState extends State<ChatScreen> {
   List<ChatMessageItem> _messages = [];
   bool _isLoading = true;
   bool _isSending = false;
-  String? _error;
 
   @override
   void initState() {
@@ -37,7 +36,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadMessages() async {
     setState(() {
       _isLoading = true;
-      _error = null;
     });
 
     try {
@@ -53,7 +51,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
           _isLoading = false;
         });
       }
@@ -77,7 +74,6 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _messages = [..._messages, optimistic];
       _isSending = true;
-      _error = null;
     });
     _scrollToBottom();
 
@@ -95,11 +91,10 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // Remove optimistic message on failure and show error
+        // Remove optimistic message on failure
         setState(() {
           _messages = _messages.where((m) => m != optimistic).toList();
           _isSending = false;
-          _error = e.toString();
         });
         // Restore the text so the user doesn't lose their message
         _messageController.text = text;
@@ -149,7 +144,6 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         children: [
           _buildHeader(),
-          if (_error != null) _buildErrorBanner(),
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -232,39 +226,6 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: 'Refresh messages',
             onPressed: _isLoading ? null : _loadMessages,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorBanner() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.red.shade700.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _error!,
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontSize: 12,
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => setState(() => _error = null),
-            child: const Icon(Icons.close, color: Colors.white, size: 18),
           ),
         ],
       ),
